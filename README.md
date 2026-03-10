@@ -2,6 +2,22 @@
 
 Una aplicación web para analizar código fuente utilizando Grandes Modelos de Lenguaje (LLMs) y generar sugerencias. Permite a los desarrolladores seleccionar archivos de un proyecto local, formular una pregunta o tarea, y obtener una respuesta generada por una IA que tiene el contexto completo de los archivos seleccionados.
 
+<div style="flex">
+
+</div>
+
+<details>
+
+<summary>Imagenes de ejemplo</summary>
+
+<img src="https://i.imgur.com/oUwAH34.png" alt="Imagen de la aplicación 1" style="max-width:900px; height:auto;">
+<img src="https://i.imgur.com/A1lE40h.png" alt="Imagen de la aplicación 2" style="max-width:900px; height:auto;">
+<img src="https://i.imgur.com/0fqguII.png" alt="Imagen de la aplicación 3" style="max-width:900px; height:auto;">
+<img src="https://i.imgur.com/OEerYfz.png" alt="Imagen de la aplicación 4" style="max-width:900px; height:auto;">
+<img src="https://i.imgur.com/lChJAYE.png" alt="Imagen de la aplicación 5" style="max-width:900px; height:auto;">
+
+</details>
+
 ## Características Principales
 
 - **Explorador de Archivos:** Navega por la estructura de directorios de un proyecto local y selecciona los archivos relevantes para el análisis.
@@ -115,5 +131,6 @@ Establece una variable de entorno `PORT` para cambiar de puerto
 - `npm run lint`: Ejecuta el linter de ESLint para analizar el código.
 
 ## TODO
+
 - Agregar compatibilidad para archivos con extensiónes no usan
 - Agregar capacidad para conversaciones multimodales
