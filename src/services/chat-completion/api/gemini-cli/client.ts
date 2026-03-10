@@ -1,3 +1,4 @@
+import "server-only";
 import { spawn } from "child_process";
 import { mkdirSync, writeFileSync } from "fs";
 import path from "path";

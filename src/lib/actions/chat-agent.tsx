@@ -21,7 +21,7 @@ export async function generateResponse(
     const modelResponse = await agent.generateContent(instruction, input);
 
     await fs.writeFile(
-      path.join(process.cwd(), "response.txt"),
+      path.join(process.cwd(), "response.md"),
       modelResponse.response,
       "utf-8"
     );

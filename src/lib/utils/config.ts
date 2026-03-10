@@ -1,3 +1,4 @@
+"only server"
 const TARGET_PROJECT_PATH = process.env.TARGET_PROJECT_PATH;
 const GENAI_API_KEY = process.env.GENAI_API_KEY;
 const VERTEX_API_KEY = process.env.VERTEX_API_KEY;

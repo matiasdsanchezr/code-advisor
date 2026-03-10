@@ -13,7 +13,7 @@ const FilePathsSchema = z.object({
 });
 
 const GeneratePromptSchema = z.object({
-  userQuery: z.string().trim().min(1, "La consulta es obligatoria").max(10_000),
+  userQuery: z.string().trim().min(1, "La consulta es obligatoria").max(50000),
   filePaths: z.array(z.string().trim().min(1)).min(1).max(200),
 });
 
