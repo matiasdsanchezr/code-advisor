@@ -132,5 +132,7 @@ Establece una variable de entorno `PORT` para cambiar de puerto
 
 ## TODO
 
-- Agregar compatibilidad para archivos con extensiónes no usan
-- Agregar capacidad para conversaciones multimodales
+- Añadir conversaciones multi-turno
+- Añadir capacidad para conversaciones multimodales
+- Añadir compatibilidad con archivos en otros lenguajes de programación
+- Añadir capacidad de cargar archivos MD con prompts personalizados
