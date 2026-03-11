@@ -61,7 +61,7 @@ const getContents = (messages: Message[], contextInfo?: string): Content[] => {
             },
           },
         ],
-      }
+      },
     );
   return contents;
 };
@@ -74,7 +74,7 @@ export class VertexClient {
   });
 
   public generateResponse = async (
-    args: GenerateResponseOptions
+    args: GenerateResponseOptions,
   ): Promise<ModelResponse> => {
     const model = args.model ?? "gemini-flash-latest";
     const client = this._client;
@@ -112,7 +112,7 @@ export class VertexClient {
 
   private async getStreamResult(
     modelResponse: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
-    debug: boolean
+    debug: boolean,
   ) {
     let response = "";
     let thoughts = "";
@@ -122,7 +122,7 @@ export class VertexClient {
         if (debug)
           process.stdout.write(
             chunk.candidates?.[0].content?.parts?.[0].text ||
-              "Razonamiento no encontrado"
+              "Razonamiento no encontrado",
           );
         continue;
       }
@@ -134,7 +134,7 @@ export class VertexClient {
   }
 
   public generateResponseStream = async (
-    args: GenerateResponseOptions
+    args: GenerateResponseOptions,
   ): Promise<ModelResponse> => {
     const model = args.model ?? "gemini-flash-latest";
     const client = googleGenAi;
@@ -156,7 +156,7 @@ export class VertexClient {
     });
     const result = await this.getStreamResult(
       modelResponse,
-      args.debug || false
+      args.debug || false,
     );
     if (!result) throw new Error("Error al producir una respuesta");
     return { ...result, response: result.response };

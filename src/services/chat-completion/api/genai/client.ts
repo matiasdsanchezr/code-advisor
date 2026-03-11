@@ -31,7 +31,7 @@ export class GenAIClient {
   private _client = new GoogleGenAI({ apiKey: config.GENAI_API_KEY });
 
   public generateResponse = async (
-    args: GenerateResponseOptions
+    args: GenerateResponseOptions,
   ): Promise<ModelResponse> => {
     const model = args.model ?? "gemini-flash-latest";
     const client = this._client;
@@ -72,7 +72,7 @@ export class GenAIClient {
 
   private async getStreamResult(
     modelResponse: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
-    debug: boolean
+    debug: boolean,
   ) {
     let response = "";
     let thoughts = "";
@@ -82,7 +82,7 @@ export class GenAIClient {
         if (debug)
           process.stdout.write(
             chunk.candidates?.[0].content?.parts?.[0].text ||
-              "Razonamiento no encontrado"
+              "Razonamiento no encontrado",
           );
         continue;
       }
@@ -94,7 +94,7 @@ export class GenAIClient {
   }
 
   public generateResponseStream = async (
-    args: GenerateResponseOptions
+    args: GenerateResponseOptions,
   ): Promise<ModelResponse> => {
     const model = args.model ?? "gemini-flash-latest";
     const client = this._client;
@@ -119,7 +119,7 @@ export class GenAIClient {
     });
     const result = await this.getStreamResult(
       modelResponse,
-      args.debug || false
+      args.debug || false,
     );
     if (!result) throw new Error("Error al producir una respuesta");
     return { ...result, response: result.response };

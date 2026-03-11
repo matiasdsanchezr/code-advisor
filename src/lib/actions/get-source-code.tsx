@@ -5,6 +5,7 @@ import fs from "fs/promises";
 import path from "path";
 import { z } from "zod";
 import { config } from "../utils/config";
+import { ActionState } from "@/types/action-state";
 
 const ALLOWED_EXTENSIONS = new Set([".tsx", ".ts", ".js", ".md", ".json"]);
 
@@ -13,7 +14,6 @@ const FilePathsSchema = z.object({
 });
 
 const GeneratePromptSchema = z.object({
-  userQuery: z.string().trim().min(1, "La consulta es obligatoria").max(50000),
   filePaths: z.array(z.string().trim().min(1)).min(1).max(200),
 });
 
@@ -74,13 +74,13 @@ async function readSelectedFiles(paths: string[]): Promise<FileContent[]> {
           error: String(error),
         };
       }
-    })
+    }),
   );
 }
 
 export async function analyzeFiles(
   _prev: FileContent[],
-  formData: FormData
+  formData: FormData,
 ): Promise<FileContent[]> {
   const parsed = FilePathsSchema.safeParse({
     filePaths: formData.getAll("filePath"),
@@ -93,31 +93,30 @@ export async function analyzeFiles(
 
 export type GeneratePromptResponse = {
   files: FileContent[];
-  userQuery: string;
-  formError?: string;
 };
 
 export async function generatePrompt(
   _prev: GeneratePromptResponse,
-  formData: FormData
-): Promise<GeneratePromptResponse> {
+  formData: FormData,
+): Promise<ActionState<GeneratePromptResponse>> {
   const parsed = GeneratePromptSchema.safeParse({
-    userQuery: formData.get("userQuery"),
     filePaths: formData.getAll("filePath"),
   });
 
   if (!parsed.success) {
     return {
-      files: [],
-      userQuery: String(formData.get("userQuery") ?? ""),
-      formError: parsed.error.issues[0]?.message ?? "Datos inválidos",
+      success: false,
+      message: parsed.error.issues[0]?.message ?? "Datos inválidos",
+      timestamp: Date.now(),
     };
   }
 
   const files = await readSelectedFiles(parsed.data.filePaths);
 
   return {
-    files,
-    userQuery: parsed.data.userQuery,
+    success: true,
+    message: "Archivos cargados correctamente",
+    timestamp: Date.now(),
+    data: { files },
   };
 }

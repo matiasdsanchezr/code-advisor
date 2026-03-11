@@ -1,27 +1,6 @@
 "use client";
-import { useState, useEffect, useMemo, useTransition } from "react";
-import { FileExplorer } from "./file-explorer";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import {
-  generatePrompt,
-  GeneratePromptResponse,
-} from "@/lib/actions/get-source-code";
-import { GeneratedUserPrompt } from "./generated-user-prompt";
-import { buildPrompt } from "../../lib/utils/build-prompt";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { generateResponse } from "@/lib/actions/chat-agent";
-import { EMPTY_FORM_STATE, FormState } from "@/types/form-state";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -29,117 +8,85 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-
-const DEFAULT_SYSTEM_PROMPT =
-  "Eres un asistente experto en análisis de código fuente. Analiza el código proporcionado y responde de forma clara y concisa.";
-
-const INITIAL_PROMPT_RESPONSE: GeneratePromptResponse = {
-  files: [],
-  userQuery: "",
-  formError: undefined,
-};
+import { Textarea } from "@/components/ui/textarea";
+import { generateResponse } from "@/lib/actions/chat-agent";
+import { generatePrompt } from "@/lib/actions/get-source-code";
+import { useChatStore } from "@/lib/stores/chat-store";
+import { EMPTY_ACTION_STATE } from "@/types/action-state";
+import { useMemo, useState, useTransition } from "react";
+import { buildPrompt } from "../../lib/utils/build-prompt";
+import { FileExplorer } from "./file-explorer";
+import { GeneratedUserPrompt } from "./generated-user-prompt";
+import { SystemPromptDialog } from "./system-prompt-dialog";
+import { useShallow } from "zustand/shallow";
 
 export const ChatShell = ({ filePaths }: { filePaths: string[] }) => {
-  const [resetKey, setResetKey] = useState(0);
-
-  return (
-    <div key={resetKey}>
-      <ChatShellContent
-        filePaths={filePaths}
-        onReset={() => setResetKey((k) => k + 1)}
-      />
-    </div>
-  );
+  return <ChatShellContent filePaths={filePaths} />;
 };
 
-const ChatShellContent = ({
-  filePaths,
-  onReset,
-}: {
-  filePaths: string[];
-  onReset: () => void;
-}) => {
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
+  const {
+    selectedFiles,
+    userQuery,
+    systemPrompt,
+    promptData,
+    agentResponse,
+    setUserQuery,
+    setPromptData,
+    setAgentResponse,
+    resetChatResult,
+    resetAll,
+  } = useChatStore(
+    useShallow((s) => ({
+      selectedFiles: s.selectedFiles,
+      userQuery: s.userQuery,
+      systemPrompt: s.systemPrompt,
+      promptData: s.promptData,
+      agentResponse: s.agentResponse,
+      setUserQuery: s.setUserQuery,
+      setPromptData: s.setPromptData,
+      setAgentResponse: s.setAgentResponse,
+      resetChatResult: s.resetChatResult,
+      resetAll: s.resetAll,
+    })),
+  );
+
   const [showFileExplorer, setShowFileExplorer] = useState(true);
-  const [userQuery, setUserQuery] = useState("");
-  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_SYSTEM_PROMPT);
-  const [systemPromptDraft, setSystemPromptDraft] = useState(
-    DEFAULT_SYSTEM_PROMPT
-  );
-  const [isSystemPromptOpen, setIsSystemPromptOpen] = useState(false);
-  const [fileErrors, setFileErrors] = useState<string[]>([]);
   const [isPending, startPromptTransition] = useTransition();
-  const [promptData, setPromptData] = useState<GeneratePromptResponse>(
-    INITIAL_PROMPT_RESPONSE
-  );
   const [isAgentPending, startAgentTransition] = useTransition();
-  const [agentResponse, setAgentResponse] =
-    useState<FormState>(EMPTY_FORM_STATE);
+  const [agentError, setAgentError] = useState<string>("");
 
   const handleGeneratePrompt = (formData: FormData) => {
     startPromptTransition(async () => {
       const result = await generatePrompt(promptData, formData);
-      setPromptData(result);
+      if (result.data) setPromptData(result.data);
     });
   };
 
   const handleAgentAction = (formData: FormData) => {
     startAgentTransition(async () => {
-      const result = await generateResponse(agentResponse, formData);
-      setAgentResponse(result);
+      const result = await generateResponse(
+        { ...EMPTY_ACTION_STATE, data: { ...agentResponse } },
+        formData,
+      );
+      if (result.data) {
+        setAgentResponse(result.data);
+        setAgentError("");
+        return;
+      }
+      setAgentError(result.message);
     });
   };
 
-  // Efectos para persistir en localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("chatShellState");
-    if (saved) {
-      try {
-        const { selectedFiles: savedFiles, userQuery: savedQuery } =
-          JSON.parse(saved);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSelectedFiles(Array.isArray(savedFiles) ? savedFiles : []);
-        setUserQuery(typeof savedQuery === "string" ? savedQuery : "");
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(
-      "chatShellState",
-      JSON.stringify({ selectedFiles, userQuery })
-    );
-  }, [selectedFiles, userQuery]);
-
-  useEffect(() => {
-    const nextErrors = promptData.files
-      .filter((file) => file.error)
-      .map((file) => `${file.path}: ${file.error}`);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFileErrors(nextErrors);
-  }, [promptData.files]);
-
-  const handleModifyQuery = () => {
-    setPromptData(INITIAL_PROMPT_RESPONSE);
-    setAgentResponse(EMPTY_FORM_STATE);
-  };
-
-  const handleResetSystemPrompt = () => {
-    setSystemPromptDraft(DEFAULT_SYSTEM_PROMPT);
-  };
-
-  const handleSaveSystemPrompt = () => {
-    setSystemPrompt(systemPromptDraft);
-    setIsSystemPromptOpen(false);
-  };
-
-  const handleOpenSystemPrompt = (open: boolean) => {
-    if (open) setSystemPromptDraft(systemPrompt);
-    setIsSystemPromptOpen(open);
-  };
+  const fileErrors = useMemo(
+    () =>
+      promptData.files
+        .filter((file) => file.error)
+        .map((file) => `${file.path}: ${file.error}`),
+    [promptData.files],
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (
@@ -156,19 +103,18 @@ const ChatShellContent = ({
 
   const validFiles = useMemo(
     () => promptData.files.filter((f) => !f.error && f.sourceCode),
-    [promptData.files]
+    [promptData.files],
   );
-  const isPromptGenerated = validFiles.length > 0 && !!promptData.userQuery;
+  const isPromptGenerated = validFiles.length > 0 && !!userQuery;
   const isDisabled = isPending || isAgentPending || isPromptGenerated;
-
   const finalPrompt = useMemo(
     () =>
       buildPrompt(
         systemPrompt,
-        promptData.userQuery,
-        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n")
+        userQuery,
+        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n"),
       ),
-    [systemPrompt, promptData.userQuery, validFiles]
+    [systemPrompt, userQuery, validFiles],
   );
 
   return (
@@ -183,52 +129,7 @@ const ChatShellContent = ({
                 Selecciona los archivos y describe la tarea que deseas realizar.
               </CardDescription>
             </div>
-            <Dialog
-              open={isSystemPromptOpen}
-              onOpenChange={handleOpenSystemPrompt}
-            >
-              <DialogTrigger
-                render={
-                  <Button variant="outline" size="sm" disabled={isDisabled}>
-                    <span className="icon-[fa7-solid--sliders] mr-2" />
-                    System Prompt
-                  </Button>
-                }
-              ></DialogTrigger>
-              <DialogContent className="sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle>Configurar System Prompt</DialogTitle>
-                  <DialogDescription>
-                    Define el comportamiento del asistente antes de procesar los
-                    archivos.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-2 py-2">
-                  <Label htmlFor="system-prompt">
-                    Instrucciones del sistema
-                  </Label>
-                  <Textarea
-                    id="system-prompt"
-                    value={systemPromptDraft}
-                    onChange={(e) => setSystemPromptDraft(e.target.value)}
-                    placeholder="Escribe las instrucciones para el asistente..."
-                    className="min-h-40 resize-y"
-                  />
-                </div>
-                <DialogFooter className="gap-2">
-                  <Button
-                    variant="ghost"
-                    onClick={() => setIsSystemPromptOpen(false)}
-                  >
-                    Cancelar
-                  </Button>
-                  <Button variant="outline" onClick={handleResetSystemPrompt}>
-                    Restaurar predeterminado
-                  </Button>
-                  <Button onClick={handleSaveSystemPrompt}>Guardar</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <SystemPromptDialog disabled={isDisabled} />
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -243,18 +144,12 @@ const ChatShellContent = ({
             {selectedFiles.length})
           </Button>
           {showFileExplorer && (
-            <FileExplorer
-              filePaths={filePaths}
-              selectedFiles={selectedFiles}
-              onSelectedFilesChange={setSelectedFiles}
-              disabled={isDisabled}
-            />
+            <FileExplorer filePaths={filePaths} disabled={isDisabled} />
           )}
 
-          {(promptData.formError || fileErrors.length > 0) && (
+          {fileErrors.length > 0 && (
             <Alert variant="destructive">
               <AlertDescription className="space-y-1">
-                {promptData.formError && <p>{promptData.formError}</p>}
                 {fileErrors.length > 0 && (
                   <p>
                     No se pudieron leer {fileErrors.length} archivo(s). Revisa
@@ -319,11 +214,8 @@ const ChatShellContent = ({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <GeneratedUserPrompt
-              fileContents={promptData.files}
-              userQuery={promptData.userQuery}
-              systemPrompt={systemPrompt}
-            />
+            {/* Seccion de prompt generado */}
+            <GeneratedUserPrompt />
             <Separator />
             <div className="flex items-center gap-4 flex-wrap">
               <form action={handleAgentAction}>
@@ -349,7 +241,7 @@ const ChatShellContent = ({
               </form>
               <Button
                 variant="outline"
-                onClick={handleModifyQuery}
+                onClick={resetChatResult}
                 disabled={isAgentPending}
               >
                 <span className="icon-[fa7-solid--pencil] mr-2" />
@@ -357,7 +249,7 @@ const ChatShellContent = ({
               </Button>
               <Button
                 variant="destructive"
-                onClick={onReset}
+                onClick={resetAll}
                 disabled={isAgentPending}
               >
                 <span className="icon-[fa7-solid--arrow-rotate-left] mr-2" />
@@ -369,20 +261,19 @@ const ChatShellContent = ({
       )}
 
       {/* --- SECCIÓN 3: Respuesta de la IA --- */}
-      {agentResponse.timestamp > 0 && (
+      {(agentResponse.response || agentError) && (
         <Card>
           <CardHeader>
             <CardTitle>Respuesta del Asistente</CardTitle>
           </CardHeader>
           <CardContent>
-            {agentResponse.success &&
-            (agentResponse.data as { response: string })?.response ? (
+            {agentResponse.response ? (
               <div className="p-4 border rounded-lg bg-zinc-100 dark:bg-zinc-900 whitespace-pre-wrap font-mono text-sm">
-                {(agentResponse.data as { response: string }).response}
+                {agentResponse.response}
               </div>
             ) : (
               <Alert variant="destructive">
-                <AlertDescription>{agentResponse.message}</AlertDescription>
+                <AlertDescription>{agentError}</AlertDescription>
               </Alert>
             )}
           </CardContent>

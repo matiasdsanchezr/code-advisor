@@ -1,6 +1,6 @@
-"use server";
-import { redirect } from "next/navigation";
+"use client";
+import { redirect, RedirectType } from "next/navigation";
 
-export default async function Navigate() {
-  redirect("/");
+export default function NotFound() {
+  redirect("/", RedirectType.replace);
 }

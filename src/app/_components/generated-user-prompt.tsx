@@ -1,28 +1,22 @@
 "use client";
-import { useState } from "react";
-import { Copy, Check, FileCode2, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { FileContent } from "@/types/file-content";
+import { Textarea } from "@/components/ui/textarea";
+import { useChatStore } from "@/lib/stores/chat-store";
 import { buildPrompt } from "@/lib/utils/build-prompt";
+import { Check, ChevronDown, Copy, FileCode2 } from "lucide-react";
+import { useState } from "react";
 
-interface SourceCodeBlockProps {
-  fileContents: FileContent[];
-  systemPrompt: string;
-  userQuery: string;
-}
+export const GeneratedUserPrompt = () => {
+  const systemPrompt = useChatStore((state) => state.systemPrompt);
+  const userQuery = useChatStore((state) => state.userQuery);
+  const fileContents = useChatStore((state) => state.promptData.files);
 
-export const GeneratedUserPrompt = ({
-  fileContents,
-  userQuery,
-  systemPrompt,
-}: SourceCodeBlockProps) => {
   const [copied, setCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
@@ -34,7 +28,7 @@ export const GeneratedUserPrompt = ({
   const generatedUserPrompt = buildPrompt(
     systemPrompt,
     userQuery,
-    joinedSourceCode
+    joinedSourceCode,
   );
 
   const handleCopy = async () => {
@@ -103,7 +97,7 @@ export const GeneratedUserPrompt = ({
         <Textarea
           readOnly
           value={generatedUserPrompt}
-          className="font-mono text-xs resize-y min-h-64 max-h-[500px] bg-background"
+          className="font-mono text-xs resize-y min-h-64 max-h-125 bg-background"
           aria-label="Código fuente unificado"
         />
         <p className="text-xs text-muted-foreground text-right">

@@ -1,9 +1,9 @@
-import { getChatAgentState } from "@/lib/actions/chat-agent";
+import { getChatAgentState } from "@/lib/queries/chat-agent";
 import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
-import "./globals.css";
 import { Navbar } from "./_components/navbar";
+import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
