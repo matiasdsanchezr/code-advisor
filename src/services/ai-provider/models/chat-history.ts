@@ -1,5 +1,5 @@
-import { Message } from '../schemas/message.schema';
-import { ChatHistoryBase } from '../types';
+import { Message } from "../schemas/message.schema";
+import { ChatHistoryBase } from "../types/chat-history-base";
 
 export class ChatHistory implements ChatHistoryBase<Message, string> {
   private history: Message[] = [];
@@ -14,8 +14,8 @@ export class ChatHistory implements ChatHistoryBase<Message, string> {
 
   public setMessages = (messages: Message[]) => {
     this.history = messages.map((message) => ({
-      role: message.role === 'user' ? 'user' : 'assistant',
-      content: message.content
+      role: message.role === "user" ? "user" : "assistant",
+      content: message.content,
     }));
   };
 
@@ -28,14 +28,14 @@ export class ChatHistory implements ChatHistoryBase<Message, string> {
   };
 
   public addUserMessage = (message: string) => {
-    this.history.push({ role: 'user', content: message });
+    this.history.push({ role: "user", content: message });
   };
 
   public addAssistantMessage = (message: string) => {
-    this.history.push({ role: 'assistant', content: message });
+    this.history.push({ role: "assistant", content: message });
   };
 
   public addSystemMessage = (message: string) => {
-    this.history.push({ role: 'system', content: message });
+    this.history.push({ role: "system", content: message });
   };
 }

@@ -1,8 +1,8 @@
-import { loadFiles } from "@/lib/actions/get-files";
+import { getFilePaths } from "@/services/file-service";
 import { ChatShell } from "./_components/chat-shell";
 
 export default async function Home() {
-  const filePaths = await loadFiles();
+  const filePaths = await getFilePaths();
 
   return (
     <div className="min-h-dvh bg-zinc-50 font-sans dark:bg-black">

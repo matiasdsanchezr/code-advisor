@@ -1,4 +1,4 @@
-import { getChatAgentState } from "@/lib/queries/chat-agent";
+import { getAiProviderState } from "@/services/ai-provider/ai-provider-service";
 import { cn } from "@/lib/utils";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
@@ -34,7 +34,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const chatAgentInfo = await getChatAgentState();
+  const chatAgentInfo = await getAiProviderState();
 
   return (
     <html lang="en" className={cn("font-sans", inter.variable)}>

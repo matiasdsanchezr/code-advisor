@@ -1,26 +1,19 @@
-import { config } from "@/lib/utils/config";
+import { config } from "@/lib/config";
 import { GeminiCliClient } from "./api/gemini-cli/client";
 import { GenAIClient } from "./api/genai/client";
 import { NvidiaNimClient } from "./api/nvidia-nim/client";
 import { OpenRouterClient } from "./api/open-router/client";
 import { VertexClient } from "./api/vertex/client";
+import { AIClient } from "./types/ai-client";
 
-type Client =
-  | VertexClient
-  | GenAIClient
-  | GeminiCliClient
-  | OpenRouterClient
-  | NvidiaNimClient;
-
-export class ChatCompletionAgent {
-  private static _instance: ChatCompletionAgent;
+export class AiProviderService {
+  private static _instance: AiProviderService;
 
   private _model: string = config.MODEL;
   private _locked: boolean = false;
-  private _client: Client;
+  private _client: AIClient;
 
   private constructor() {
-    console.log(`Inicializando agente con proveedor: ${config.AI_PROVIDER}`);
     switch (config.AI_PROVIDER) {
       case "genai":
         this._client = new GenAIClient();
@@ -55,32 +48,33 @@ export class ChatCompletionAgent {
     return this._model;
   }
 
-  public static async getInstance(): Promise<ChatCompletionAgent> {
-    if (!ChatCompletionAgent._instance) {
-      ChatCompletionAgent._instance = new ChatCompletionAgent();
+  public static async getInstance(): Promise<AiProviderService> {
+    if (!AiProviderService._instance) {
+      AiProviderService._instance = new AiProviderService();
     }
-    return ChatCompletionAgent._instance;
+    return AiProviderService._instance;
   }
 
   public async generateContent(systemPrompt: string, userInput: string) {
-    if (this._locked)
+    if (this._locked) {
       throw new Error(
         "El LLM está ocupado. Esperá a que finalice la tarea actual."
       );
-
+    }
     this._locked = true;
     try {
-      const modelResponse = await this._client.generateResponse({
+      if (!this._client.generateResponseStream)
+        throw new Error("Modo streaming no disponible");
+      const modelResponse = await this._client.generateResponseStream({
         systemPrompt,
         messages: [{ role: "user", content: userInput }],
-        config: {
-          // abortSignal: AbortSignal.timeout(120 * 1000),
-          // maxOutputTokens: 30000,
-          temperature: 1,
-        },
+        config: { temperature: 1 },
         model: this._model,
+        debug: true,
       });
       return modelResponse;
+    } catch (e) {
+      throw e;
     } finally {
       this._locked = false;
     }

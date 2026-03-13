@@ -15,7 +15,7 @@ import {
   SquareCheck,
   Trash2,
 } from "lucide-react";
-import { useChatStore } from "@/lib/stores/chat-store";
+import { useChatStore } from "@/stores/chat-store";
 
 interface FileExplorerProps {
   filePaths: string[];
@@ -153,7 +153,7 @@ function TreeNodeRow({
   onToggle: (node: TreeNode) => void;
   disabled: boolean;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   const { checked, indeterminate } = useMemo(() => {
     if (node.isFile) {
@@ -180,7 +180,7 @@ function TreeNodeRow({
         setOpen((o) => !o);
       }
     },
-    [hasChildren],
+    [hasChildren]
   );
 
   return (
@@ -189,9 +189,9 @@ function TreeNodeRow({
         className={cn(
           "flex items-center gap-2 px-2 py-3 md:py-1.5 rounded-lg md:rounded-md cursor-pointer",
           "hover:bg-black/10 transition-colors group",
-          "text-sm md:text-xs",
+          "text-sm md:text-xs"
         )}
-        style={{ paddingLeft: `${Math.min(depth * 12 + 8, 40)}px` }}
+        style={{ paddingLeft: `${Math.min(depth * 12 + 8, 200)}px` }}
       >
         {/* Expand/collapse arrow */}
         {!node.isFile ? (
@@ -206,7 +206,7 @@ function TreeNodeRow({
             <ChevronRight
               className={cn(
                 "h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200",
-                open && "rotate-90",
+                open && "rotate-90"
               )}
             />
           </button>
@@ -226,7 +226,7 @@ function TreeNodeRow({
         <span
           className={cn(
             "truncate flex-1",
-            node.isFile ? "text-muted-foreground" : "font-medium",
+            node.isFile ? "text-muted-foreground" : "font-medium"
           )}
         >
           {node.name}
@@ -269,7 +269,7 @@ export function FileExplorer({
 
   const { roots, folderToFiles } = useMemo(
     () => buildTree(filePaths),
-    [filePaths],
+    [filePaths]
   );
 
   const selectedSet = useMemo(() => new Set(selectedFiles), [selectedFiles]);
@@ -282,7 +282,7 @@ export function FileExplorer({
         ? node.filePath
           ? [node.filePath]
           : []
-        : (folderToFiles.get(node.id) ?? []);
+        : folderToFiles.get(node.id) ?? [];
 
       if (!affected.length) return;
 
@@ -291,7 +291,7 @@ export function FileExplorer({
       affected.forEach((f) => (allSelected ? next.delete(f) : next.add(f)));
       setSelectedFiles([...next]);
     },
-    [disabled, folderToFiles, selectedFiles, setSelectedFiles],
+    [disabled, folderToFiles, selectedFiles, setSelectedFiles]
   );
 
   const handleClearSelection = () => {
@@ -311,7 +311,7 @@ export function FileExplorer({
             "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors",
             activeTab === "tree"
               ? "bg-background shadow-sm"
-              : "text-muted-foreground",
+              : "text-muted-foreground"
           )}
         >
           <span className="icon-[fa7-solid--sitemap] h-4 w-4"></span>
@@ -326,7 +326,7 @@ export function FileExplorer({
             "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-colors",
             activeTab === "selected"
               ? "bg-background shadow-sm"
-              : "text-muted-foreground",
+              : "text-muted-foreground"
           )}
         >
           <SquareCheck className="h-4 w-4" />
@@ -341,7 +341,7 @@ export function FileExplorer({
         <div
           className={cn(
             "flex-col flex-1 md:w-1/2 lg:w-2/5 border-b md:border-b-0 md:border-r",
-            activeTab === "tree" ? "flex" : "hidden md:flex",
+            activeTab === "tree" ? "flex" : "hidden md:flex"
           )}
         >
           <div className="px-3 py-2.5 md:py-2 border-b flex items-center justify-between bg-muted/30">
@@ -374,7 +374,7 @@ export function FileExplorer({
         <div
           className={cn(
             "flex-col flex-1 md:w-1/2 lg:w-3/5",
-            activeTab === "selected" ? "flex" : "hidden md:flex",
+            activeTab === "selected" ? "flex" : "hidden md:flex"
           )}
         >
           <div className="px-3 py-2.5 md:py-2 border-b flex items-center justify-between bg-muted/30">

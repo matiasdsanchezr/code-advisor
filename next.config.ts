@@ -1,26 +1,12 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  turbopack: {
+    root: path.join(__dirname),
+  },
   reactCompiler: true,
-  // async headers() {
-  //   return [
-  //     {
-  //       source: "/(.*)",
-  //       headers: [
-  //         {
-  //           key: "X-Frame-Options",
-  //           value: "DENY", // Evita que al app se cargue en un iframe de otro sitio
-  //         },
-  //         {
-  //           key: "Content-Security-Policy",
-  //           value:
-  //             "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline';",
-  //         },
-  //       ],
-  //     },
-  //   ];
-  // },
 };
 
 export default nextConfig;

@@ -7,15 +7,15 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
-import { useChatStore } from "@/lib/stores/chat-store";
-import { buildPrompt } from "@/lib/utils/build-prompt";
+import { useChatStore } from "@/stores/chat-store";
+import { buildPrompt } from "@/utils/build-prompt";
 import { Check, ChevronDown, Copy, FileCode2 } from "lucide-react";
 import { useState } from "react";
 
 export const GeneratedUserPrompt = () => {
   const systemPrompt = useChatStore((state) => state.systemPrompt);
   const userQuery = useChatStore((state) => state.userQuery);
-  const fileContents = useChatStore((state) => state.promptData.files);
+  const fileContents = useChatStore((state) => state.fileContents);
 
   const [copied, setCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -28,7 +28,7 @@ export const GeneratedUserPrompt = () => {
   const generatedUserPrompt = buildPrompt(
     systemPrompt,
     userQuery,
-    joinedSourceCode,
+    joinedSourceCode
   );
 
   const handleCopy = async () => {

@@ -1,4 +1,6 @@
 "use client";
+import { generateAiAnswer } from "@/actions/chat-agent";
+import { generatePrompt } from "@/actions/get-source-code";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,16 +13,13 @@ import {
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { generateResponse } from "@/lib/actions/chat-agent";
-import { generatePrompt } from "@/lib/actions/get-source-code";
-import { useChatStore } from "@/lib/stores/chat-store";
-import { EMPTY_ACTION_STATE } from "@/types/action-state";
+import { useChatStore } from "@/stores/chat-store";
 import { useMemo, useState, useTransition } from "react";
-import { buildPrompt } from "../../lib/utils/build-prompt";
+import { useShallow } from "zustand/shallow";
+import { buildPrompt } from "../../utils/build-prompt";
 import { FileExplorer } from "./file-explorer";
 import { GeneratedUserPrompt } from "./generated-user-prompt";
 import { SystemPromptDialog } from "./system-prompt-dialog";
-import { useShallow } from "zustand/shallow";
 
 export const ChatShell = ({ filePaths }: { filePaths: string[] }) => {
   return <ChatShellContent filePaths={filePaths} />;
@@ -31,7 +30,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
     selectedFiles,
     userQuery,
     systemPrompt,
-    promptData,
+    fileContents,
     agentResponse,
     setUserQuery,
     setPromptData,
@@ -43,14 +42,14 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       selectedFiles: s.selectedFiles,
       userQuery: s.userQuery,
       systemPrompt: s.systemPrompt,
-      promptData: s.promptData,
+      fileContents: s.fileContents,
       agentResponse: s.agentResponse,
       setUserQuery: s.setUserQuery,
-      setPromptData: s.setPromptData,
+      setPromptData: s.setFileContents,
       setAgentResponse: s.setAgentResponse,
       resetChatResult: s.resetChatResult,
       resetAll: s.resetAll,
-    })),
+    }))
   );
 
   const [showFileExplorer, setShowFileExplorer] = useState(true);
@@ -60,32 +59,29 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
 
   const handleGeneratePrompt = (formData: FormData) => {
     startPromptTransition(async () => {
-      const result = await generatePrompt(promptData, formData);
+      const result = await generatePrompt({}, formData);
       if (result.data) setPromptData(result.data);
     });
   };
 
   const handleAgentAction = (formData: FormData) => {
     startAgentTransition(async () => {
-      const result = await generateResponse(
-        { ...EMPTY_ACTION_STATE, data: { ...agentResponse } },
-        formData,
-      );
+      const result = await generateAiAnswer({ data: agentResponse }, formData);
       if (result.data) {
         setAgentResponse(result.data);
         setAgentError("");
         return;
       }
-      setAgentError(result.message);
+      setAgentError(result.error ?? "Error al generar una respuesta");
     });
   };
 
   const fileErrors = useMemo(
     () =>
-      promptData.files
+      fileContents
         .filter((file) => file.error)
         .map((file) => `${file.path}: ${file.error}`),
-    [promptData.files],
+    [fileContents]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -102,8 +98,8 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
   };
 
   const validFiles = useMemo(
-    () => promptData.files.filter((f) => !f.error && f.sourceCode),
-    [promptData.files],
+    () => fileContents.filter((f) => !f.error && f.sourceCode),
+    [fileContents]
   );
   const isPromptGenerated = validFiles.length > 0 && !!userQuery;
   const isDisabled = isPending || isAgentPending || isPromptGenerated;
@@ -112,9 +108,9 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       buildPrompt(
         systemPrompt,
         userQuery,
-        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n"),
+        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n")
       ),
-    [systemPrompt, userQuery, validFiles],
+    [systemPrompt, userQuery, validFiles]
   );
 
   return (

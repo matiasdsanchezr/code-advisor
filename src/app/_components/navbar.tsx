@@ -1,11 +1,11 @@
 import { FileCode, LoaderCircle } from "lucide-react";
 
 type NavbarProps = {
-  chatAgentInfo: { isBusy: boolean; model: string; provider: string };
+  chatAgentInfo: { model: string; provider: string };
 };
 
 export const Navbar = ({ chatAgentInfo }: NavbarProps) => {
-  const statusLabel = chatAgentInfo.isBusy ? "Procesando" : "Disponible";
+  const statusLabel = "Disponible";
 
   return (
     <header className="border-b border-zinc-200 bg-white/80 backdrop-blur supports-backdrop-filter:bg-white/70 dark:border-zinc-800 dark:bg-zinc-950/80">
@@ -31,7 +31,7 @@ export const Navbar = ({ chatAgentInfo }: NavbarProps) => {
             aria-live="polite"
             className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
           >
-            {chatAgentInfo.isBusy ? (
+            {!statusLabel ? (
               <LoaderCircle
                 className="size-4 animate-spin text-amber-500"
                 aria-hidden="true"

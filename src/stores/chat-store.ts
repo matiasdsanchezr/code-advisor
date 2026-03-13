@@ -1,20 +1,16 @@
+import { AgentResponse } from "@/types/agent-response";
+import { FileContent } from "@/types/file-content";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { GeneratePromptResponse } from "@/lib/actions/get-source-code";
-import { AgentResponse } from "@/types/agent-response";
 
 const DEFAULT_SYSTEM_PROMPT =
   "Eres un asistente experto en análisis de código fuente. Analiza el código proporcionado y responde de forma clara y concisa.";
-
-const INITIAL_PROMPT_RESPONSE: GeneratePromptResponse = {
-  files: [],
-};
 
 interface ChatState {
   selectedFiles: string[];
   userQuery: string;
   systemPrompt: string;
-  promptData: GeneratePromptResponse;
+  fileContents: FileContent[];
   agentResponse: AgentResponse;
 }
 
@@ -22,7 +18,7 @@ interface ChatActions {
   setSelectedFiles: (files: string[]) => void;
   setUserQuery: (query: string) => void;
   setSystemPrompt: (prompt: string) => void;
-  setPromptData: (data: GeneratePromptResponse) => void;
+  setFileContents: (data: FileContent[]) => void;
   setAgentResponse: (response: AgentResponse) => void;
   resetSystemPrompt: () => void;
   resetChatResult: () => void;
@@ -33,7 +29,7 @@ const initialState: ChatState = {
   selectedFiles: [],
   userQuery: "",
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
-  promptData: INITIAL_PROMPT_RESPONSE,
+  fileContents: [],
   agentResponse: { response: "" },
 };
 
@@ -45,14 +41,13 @@ export const useChatStore = create<ChatState & ChatActions>()(
       setSelectedFiles: (files) => set({ selectedFiles: files }),
       setUserQuery: (query) => set({ userQuery: query }),
       setSystemPrompt: (prompt) => set({ systemPrompt: prompt }),
-      setPromptData: (data) => set({ promptData: data }),
+      setFileContents: (data) => set({ fileContents: data }),
       setAgentResponse: (response) => set({ agentResponse: response }),
 
       resetSystemPrompt: () => set({ systemPrompt: DEFAULT_SYSTEM_PROMPT }),
-
       resetChatResult: () =>
         set({
-          promptData: INITIAL_PROMPT_RESPONSE,
+          fileContents: [],
           agentResponse: { response: "" },
         }),
 
@@ -66,6 +61,6 @@ export const useChatStore = create<ChatState & ChatActions>()(
         systemPrompt: state.systemPrompt,
         agentResponse: state.agentResponse,
       }),
-    },
-  ),
+    }
+  )
 );
