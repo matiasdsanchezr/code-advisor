@@ -54,7 +54,7 @@ export const Navbar = ({ chatAgentInfo }: NavbarProps) => {
 
           <div className="inline-flex max-w-full items-center gap-1 rounded-full border border-zinc-200 bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
             <span className="text-zinc-500 dark:text-zinc-400">Modelo:</span>
-            <span className="max-w-[220px] truncate font-medium text-zinc-900 dark:text-zinc-100 sm:max-w-none">
+            <span className="max-w-55 truncate font-medium text-zinc-900 dark:text-zinc-100 sm:max-w-none">
               {chatAgentInfo.model}
             </span>
           </div>

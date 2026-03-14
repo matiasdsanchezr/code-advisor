@@ -20,6 +20,8 @@ import { buildPrompt } from "../../utils/build-prompt";
 import { FileExplorer } from "./file-explorer";
 import { GeneratedUserPrompt } from "./generated-user-prompt";
 import { SystemPromptDialog } from "./system-prompt-dialog";
+import { createCodePlugin } from "@streamdown/code";
+import { Streamdown } from "streamdown";
 
 export const ChatShell = ({ filePaths }: { filePaths: string[] }) => {
   return <ChatShellContent filePaths={filePaths} />;
@@ -49,7 +51,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       setAgentResponse: s.setAgentResponse,
       resetChatResult: s.resetChatResult,
       resetAll: s.resetAll,
-    }))
+    })),
   );
 
   const [showFileExplorer, setShowFileExplorer] = useState(true);
@@ -81,7 +83,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       fileContents
         .filter((file) => file.error)
         .map((file) => `${file.path}: ${file.error}`),
-    [fileContents]
+    [fileContents],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -99,7 +101,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
 
   const validFiles = useMemo(
     () => fileContents.filter((f) => !f.error && f.sourceCode),
-    [fileContents]
+    [fileContents],
   );
   const isPromptGenerated = validFiles.length > 0 && !!userQuery;
   const isDisabled = isPending || isAgentPending || isPromptGenerated;
@@ -108,9 +110,9 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       buildPrompt(
         systemPrompt,
         userQuery,
-        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n")
+        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n"),
       ),
-    [systemPrompt, userQuery, validFiles]
+    [systemPrompt, userQuery, validFiles],
   );
 
   return (
@@ -217,11 +219,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
               <form action={handleAgentAction}>
                 <input type="hidden" name="instruction" value={systemPrompt} />
                 <input type="hidden" name="input" value={finalPrompt} />
-                <Button
-                  type="submit"
-                  disabled={isAgentPending}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
+                <Button type="submit" disabled={isAgentPending}>
                   {isAgentPending ? (
                     <>
                       <span className="icon-[fa7-solid--spinner] mr-2 animate-spin" />
@@ -239,6 +237,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
                 variant="outline"
                 onClick={resetChatResult}
                 disabled={isAgentPending}
+                className="cursor-pointer"
               >
                 <span className="icon-[fa7-solid--pencil] mr-2" />
                 Modificar Consulta
@@ -264,8 +263,17 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
           </CardHeader>
           <CardContent>
             {agentResponse.response ? (
-              <div className="p-4 border rounded-lg bg-zinc-100 dark:bg-zinc-900 whitespace-pre-wrap font-mono text-sm">
-                {agentResponse.response}
+              <div className="p-4 border rounded-lg whitespace-pre-wrap font-mono text-sm">
+                <Streamdown
+                  plugins={{
+                    code: createCodePlugin({
+                      themes: ["github-light", "github-dark"], // [light, dark]
+                    }),
+                  }}
+                  className="overflow-auto"
+                >
+                  {agentResponse.response}
+                </Streamdown>
               </div>
             ) : (
               <Alert variant="destructive">

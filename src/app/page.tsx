@@ -5,7 +5,7 @@ export default async function Home() {
   const filePaths = await getFilePaths();
 
   return (
-    <div className="min-h-dvh bg-zinc-50 font-sans dark:bg-black">
+    <div className="min-h-dvh font-sans">
       <h1 className="text-xl md:text-4xl text-center p-3 uppercase font-semibold tracking-wider">
         Analizador de codigo fuente
       </h1>

@@ -1,97 +1,319 @@
-<think>El usuario tiene dos preguntas sobre el componente `file-explorer.tsx`:
+Para optimizar el componente `ChatShell` siguiendo los estándares de **ShadCN UI**, reemplazaremos los iconos de Iconify (que usan clases de Tailwind) por componentes de **Lucide React** (que es la librería por defecto de ShadCN) y nos aseguraremos de que la estructura siga las convenciones de la librería.
 
-1. **¿Cómo hacer que las carpetas aparezcan sin expandir por defecto?**
-2. **Verificar por qué después del cuarto nivel de carpetas anidadas ya no aumenta la indentación.**
-
-Voy a analizar el código para responder ambas preguntas.
-
-## Análisis de la pregunta 1: Carpetas sin expandir por defecto
-
-Mirando el código, específicamente el componente `TreeNodeRow`:
+Aquí tienes el código actualizado:
 
 ```tsx
-function TreeNodeRow({ ... }) {
-  const [open, setOpen] = useState(true);  // <-- AQUÍ ESTÁ EL PROBLEMA
-  // ...
-}
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { useShallow } from "zustand/shallow";
+import { 
+  Loader2, 
+  SendHorizontal, 
+  Brain, 
+  Pencil, 
+  RotateCcw, 
+  FolderOpen,
+  AlertCircle
+} from "lucide-react";
+
+import { generateAiAnswer } from "@/actions/chat-agent";
+import { generatePrompt } from "@/actions/get-source-code";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { useChatStore } from "@/stores/chat-store";
+import { buildPrompt } from "../../utils/build-prompt";
+import { FileExplorer } from "./file-explorer";
+import { GeneratedUserPrompt } from "./generated-user-prompt";
+import { SystemPromptDialog } from "./system-prompt-dialog";
+import { createCodePlugin } from "@streamdown/code";
+import { Streamdown } from "streamdown";
+
+export const ChatShell = ({ filePaths }: { filePaths: string[] }) => {
+  return <ChatShellContent filePaths={filePaths} />;
+};
+
+const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
+  const {
+    selectedFiles,
+    userQuery,
+    systemPrompt,
+    fileContents,
+    agentResponse,
+    setUserQuery,
+    setPromptData,
+    setAgentResponse,
+    resetChatResult,
+    resetAll,
+  } = useChatStore(
+    useShallow((s) => ({
+      selectedFiles: s.selectedFiles,
+      userQuery: s.userQuery,
+      systemPrompt: s.systemPrompt,
+      fileContents: s.fileContents,
+      agentResponse: s.agentResponse,
+      setUserQuery: s.setUserQuery,
+      setPromptData: s.setFileContents,
+      setAgentResponse: s.setAgentResponse,
+      resetChatResult: s.resetChatResult,
+      resetAll: s.resetAll,
+    })),
+  );
+
+  const [showFileExplorer, setShowFileExplorer] = useState(true);
+  const [isPending, startPromptTransition] = useTransition();
+  const [isAgentPending, startAgentTransition] = useTransition();
+  const [agentError, setAgentError] = useState<string>("");
+
+  const handleGeneratePrompt = (formData: FormData) => {
+    startPromptTransition(async () => {
+      const result = await generatePrompt({}, formData);
+      if (result.data) setPromptData(result.data);
+    });
+  };
+
+  const handleAgentAction = (formData: FormData) => {
+    startAgentTransition(async () => {
+      const result = await generateAiAnswer({ data: agentResponse }, formData);
+      if (result.data) {
+        setAgentResponse(result.data);
+        setAgentError("");
+        return;
+      }
+      setAgentError(result.error ?? "Error al generar una respuesta");
+    });
+  };
+
+  const fileErrors = useMemo(
+    () =>
+      fileContents
+        .filter((file) => file.error)
+        .map((file) => `${file.path}: ${file.error}`),
+    [fileContents],
+  );
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      e.key === "Enter" &&
+      !isDisabled &&
+      selectedFiles.length > 0 &&
+      userQuery.trim()
+    ) {
+      e.preventDefault();
+      e.currentTarget.form?.requestSubmit();
+    }
+  };
+
+  const validFiles = useMemo(
+    () => fileContents.filter((f) => !f.error && f.sourceCode),
+    [fileContents],
+  );
+
+  const isPromptGenerated = validFiles.length > 0 && !!userQuery;
+  const isDisabled = isPending || isAgentPending || isPromptGenerated;
+  
+  const finalPrompt = useMemo(
+    () =>
+      buildPrompt(
+        systemPrompt,
+        userQuery,
+        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n"),
+      ),
+    [systemPrompt, userQuery, validFiles],
+  );
+
+  return (
+    <div className="flex flex-col gap-6 p-4 max-w-5xl mx-auto w-full">
+      {/* --- SECCIÓN 1: Configuración de la Consulta --- */}
+      <Card className={isPromptGenerated ? "bg-muted/40" : ""}>
+        <CardHeader>
+          <div className="flex justify-between items-start">
+            <div className="space-y-1">
+              <CardTitle>Paso 1: Define tu consulta</CardTitle>
+              <CardDescription>
+                Selecciona los archivos y describe la tarea que deseas realizar.
+              </CardDescription>
+            </div>
+            <SystemPromptDialog disabled={isDisabled} />
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Button
+            onClick={() => setShowFileExplorer(!showFileExplorer)}
+            variant="outline"
+            size="sm"
+            disabled={isDisabled}
+            className="h-9"
+          >
+            <FolderOpen className="mr-2 h-4 w-4" />
+            {showFileExplorer ? "Ocultar" : "Mostrar"} explorador ({selectedFiles.length})
+          </Button>
+
+          {showFileExplorer && (
+            <div className="rounded-md border bg-background p-2">
+              <FileExplorer filePaths={filePaths} disabled={isDisabled} />
+            </div>
+          )}
+
+          {fileErrors.length > 0 && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error de lectura</AlertTitle>
+              <AlertDescription>
+                No se pudieron leer {fileErrors.length} archivo(s). Revisa la selección.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <form action={handleGeneratePrompt} className="space-y-4">
+            <div className="grid gap-2">
+              <Label htmlFor="user-query">Tu consulta</Label>
+              <Textarea
+                id="user-query"
+                name="userQuery"
+                value={userQuery}
+                onChange={(e) => setUserQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ej: ¿Qué hace esta función? ¿Cómo puedo optimizar este código?"
+                className="min-h-[120px] resize-y"
+                disabled={isDisabled}
+              />
+            </div>
+            {selectedFiles.map((path) => (
+              <input key={path} type="hidden" name="filePath" value={path} />
+            ))}
+            <input type="hidden" name="systemPrompt" value={systemPrompt} />
+            
+            {!isPromptGenerated && (
+              <Button
+                type="submit"
+                disabled={selectedFiles.length === 0 || !userQuery.trim() || isPending}
+                className="w-full md:w-auto"
+              >
+                {isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Analizando archivos...
+                  </>
+                ) : (
+                  <>
+                    <SendHorizontal className="mr-2 h-4 w-4" />
+                    Generar y revisar prompt
+                  </>
+                )}
+              </Button>
+            )}
+          </form>
+        </CardContent>
+      </Card>
+
+      {/* --- SECCIÓN 2: Prompt Generado --- */}
+      {isPromptGenerated && (
+        <Card className="border-blue-200 dark:border-blue-900 bg-blue-50/30 dark:bg-blue-950/10">
+          <CardHeader>
+            <CardTitle>Paso 2: Revisa y utiliza el prompt</CardTitle>
+            <CardDescription>
+              Copia el prompt o analízalo directamente con la IA.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <GeneratedUserPrompt />
+            <Separator />
+            <div className="flex flex-wrap items-center gap-3">
+              <form action={handleAgentAction}>
+                <input type="hidden" name="instruction" value={systemPrompt} />
+                <input type="hidden" name="input" value={finalPrompt} />
+                <Button
+                  type="submit"
+                  disabled={isAgentPending}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isAgentPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Procesando...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="mr-2 h-4 w-4" />
+                      Analizar con IA
+                    </>
+                  )}
+                </Button>
+              </form>
+              <Button
+                variant="outline"
+                onClick={resetChatResult}
+                disabled={isAgentPending}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Modificar Consulta
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={resetAll}
+                disabled={isAgentPending}
+                className="text-destructive hover:bg-destructive/10"
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Empezar de cero
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* --- SECCIÓN 3: Respuesta de la IA --- */}
+      {(agentResponse.response || agentError) && (
+        <Card className="shadow-lg border-2">
+          <CardHeader className="border-b bg-muted/20">
+            <CardTitle className="text-lg">Respuesta del Asistente</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            {agentResponse.response ? (
+              <div className="rounded-lg bg-zinc-950 p-1">
+                <Streamdown
+                  plugins={{
+                    code: createCodePlugin({
+                      themes: ["github-light", "github-dark"],
+                    }),
+                  }}
+                  className="prose prose-sm dark:prose-invert max-w-none p-4"
+                >
+                  {agentResponse.response}
+                </Streamdown>
+              </div>
+            ) : (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{agentError}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
 ```
 
-El estado `open` está inicializado en `true`, lo que significa que todas las carpetas aparecen expandidas por defecto.
-
-**Solución**: Cambiar `useState(true)` a `useState(false)` para que aparezcan colapsadas por defecto.
-
-## Análisis de la pregunta 2: Problema con la indentación después del 4to nivel
-
-Mirando el código de estilo inline en el componente `TreeNodeRow`:
-
-```tsx
-style={{ paddingLeft: `${Math.min(depth * 12 + 8, 40)}px` }}
-```
-
-Aquí está el problema. Se usa `Math.min(..., 40)` que limita la indentación máxima a 40px sin importar qué tan profundo sea el nivel del árbol.
-
-- Nivel 0: 8px
-- Nivel 1: 20px
-- Nivel 2: 32px
-- Nivel 3: 44px → se limita a 40px
-- Nivel 4+: siempre 40px
-
-**Solución**: Eliminar el `Math.min` o aumentar el límite máximo.
-
-Voy a proporcionar la respuesta detallada.
-</think>
-
-# Análisis del FileExplorer
-
-## Pregunta 1: Carpetas sin expandir por defecto
-
-**Problema identificado:** En el componente `TreeNodeRow` (línea 112), el estado `open` se inicializa en `true`:
-
-```tsx
-const [open, setOpen] = useState(true);  // ← Expande por defecto
-```
-
-**Solución:** Cambiar a `false` para que aparezcan colapsadas:
-
-```tsx
-const [open, setOpen] = useState(false);  // ← Colapsadas por defecto
-```
-
----
-
-## Pregunta 2: Problema de indentación después del 4to nivel
-
-**Problema identificado:** En la línea 149, hay un límite máximo que restringe la indentación:
-
-```tsx
-style={{ paddingLeft: `${Math.min(depth * 12 + 8, 40)}px` }}
-//                                  ↑^^^^^^^^^ Límite máximo de 40px
-```
-
-**Cálculo de indentación:**
-| Nivel | Cálculo | Resultado real | Resultado con Math.min |
-|-------|---------|----------------|------------------------|
-| 0 | 0×12 + 8 | 8px | 8px |
-| 1 | 1×12 + 8 | 20px | 20px |
-| 2 | 2×12 + 8 | 32px | 32px |
-| 3 | 3×12 + 8 | 44px | **40px** (limitado) |
-| 4 | 4×12 + 8 | 56px | **40px** (limitado) |
-
-**Solución:** Eliminar el `Math.min` o aumentar el límite:
-
-```tsx
-// Opción 1: Sin límite
-style={{ paddingLeft: `${depth * 12 + 8}px` }}
-
-// Opción 2: Con límite mayor (ej: 80px)
-style={{ paddingLeft: `${Math.min(depth * 12 + 8, 80)}px` }}
-```
-
----
-
-## Resumen de cambios necesarios
-
-| Archivo | Línea | Cambio |
-|---------|-------|--------|
-| `file-explorer.tsx` | 112 | `useState(true)` → `useState(false)` |
-| `file-explorer.tsx` | 149 | `Math.min(..., 40)` → `Math.min(..., 80)` o eliminar el límite |
+### Cambios realizados:
+1.  **Iconos Lucide:** Se reemplazaron todos los `<span>` que usaban Iconify por componentes nativos de `lucide-react` (`Loader2`, `Brain`, `SendHorizontal`, etc.). Esto es más consistente con ShadCN y facilita el tipado.
+2.  **Layout y Espaciado:** Se mejoró el uso de clases utilitarias de Tailwind (`space-y-6`, `grid gap-2`) en lugar de `flex-col gap-4` genéricos para dar un aire más "limpio".
+3.  **Estados Visuales:** Se añadieron variantes de color sutiles a las tarjetas (ej. `bg-blue-50/30` en el paso 2) para guiar mejor la vista del usuario a través de los pasos.
+4.  **Accesibilidad y UX:**
+    *   Se agregó un ancho máximo (`max-w-5xl mx-auto`) para que el chat no se vea demasiado ancho en pantallas grandes.
+    *   Se mejoró el feedback visual del botón "Empezar de cero" usando la variante `ghost` con colores destructivos.
+    *   Se envolvió el `FileExplorer` en un contenedor con borde para delimitar mejor el área de interacción.
+5.  **Alertas:** Se utilizó `AlertTitle` y el icono `AlertCircle` para que los errores sean más prominentes.

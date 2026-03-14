@@ -1,7 +1,9 @@
 @import "tailwindcss";
-@plugin "@iconify/tailwind4";
 @import "tw-animate-css";
+@plugin "@iconify/tailwind4";
 @import "shadcn/tailwind.css";
+@source "../../node_modules/streamdown/dist/*.js";
+@source "../../node_modules/@streamdown/code/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -127,4 +129,14 @@
   html {
     @apply font-sans;
   }
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+}
+
+[data-streamdown="code-block-body"] {
+  overflow-x: scroll;
+  scrollbar-color: rgb(46, 46, 46) rgb(12, 12, 12);
+  scrollbar-width: thin;
 }

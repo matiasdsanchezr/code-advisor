@@ -1,0 +1,50 @@
+.chatShell h1 {
+  font-size: xx-large;
+  font-weight: bold;
+}
+
+.chatShell h2 {
+  font-size: x-large;
+  font-weight: bold;
+}
+
+.chatShell h3 {
+  font-size: large;
+  font-weight: bold;
+}
+
+.chatShell td,
+.chatShell th {
+  border: 1px solid;
+  padding: 10px;
+  border-color: black;
+}
+
+.chatShell pre > code {
+  background-color: black;
+  color: white;
+}
+
+.chatShell ul {
+  list-style-type: disc;
+  list-style-position: inside;
+  margin: 0;
+  padding: 0;
+  padding-left: 2em;
+  height: fit-content;
+}
+
+.chatShell ol {
+  list-style-type: decimal;
+  list-style-position: inside;
+  margin: 0;
+  margin: 0;
+  padding-left: 2em;
+  height: fit-content;
+}
+
+.chatShell li {
+  padding: 0;
+  margin: 0;
+  height: fit-content;
+}
