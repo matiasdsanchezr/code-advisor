@@ -1,17 +1,18 @@
-import fs from "fs/promises";
-import path from "path";
-import { config } from "../lib/config";
+/**
+ * @file file-service-new.tsx
+ * @description Servicio optimizado para análisis de grafos con soporte de concurrencia,
+ * mejor resolución de módulos y gestión de estado mediante clase.
+ */
+
+import { config } from "@/lib/config";
 import { FileContent } from "@/types/file-content";
+import fs from "node:fs/promises";
+import path from "node:path";
 
-const DEFAULT_ALLOWED_EXTENSIONS = new Set([
-  ".tsx",
-  ".ts",
-  ".js",
-  ".md",
-  ".json",
-]);
+type AbsolutePath = string & { readonly __brand: unique symbol };
+type Extension = `.${string}`;
 
-const DEFAULT_IGNORE = [
+export const DEFAULT_IGNORE = new Set([
   "node_modules",
   ".git",
   ".next",
@@ -20,109 +21,224 @@ const DEFAULT_IGNORE = [
   ".cache",
   ".yalc",
   "__tests__",
-];
+]);
 
-async function walkDir(
-  dir: string,
-  extensions: Set<string>,
-  ignore: string[],
-): Promise<string[]> {
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  const files: string[] = [];
+const CODE_EXTENSIONS: ReadonlySet<Extension> = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".mjs",
+  ".jsx",
+]);
+const ALLOWED_EXTENSIONS: ReadonlySet<Extension> = new Set([
+  ...CODE_EXTENSIONS,
+  ".md",
+  ".json",
+]);
 
-  for (const entry of entries) {
-    if (entry.isDirectory() && ignore.includes(entry.name)) continue;
+const IMPORT_REGEX =
+  /(?:import|export)\s+(?:[\w*\s{},]*\s+from\s+)?["']([^"']+)["']|import\s*\(\s*["']([^"']+)["']\s*\)/g;
 
-    const fullPath = path.join(dir, entry.name);
+export class FileService {
+  private projectRoot: AbsolutePath;
+  private resolutionCache = new Map<string, AbsolutePath | null>();
+  private readonly CONCURRENCY_LIMIT = 20;
 
-    if (entry.isDirectory()) {
-      files.push(...(await walkDir(fullPath, extensions, ignore)));
-    } else if (
-      entry.isFile() &&
-      extensions.has(path.extname(entry.name).toLowerCase())
-    ) {
-      files.push(fullPath.replace(/\\/g, "/"));
+  constructor(projectRoot: string = config.TARGET_PROJECT_PATH) {
+    this.projectRoot = path.resolve(projectRoot) as AbsolutePath;
+  }
+
+  private resolveImportPath(
+    baseFile: AbsolutePath,
+    specifier: string
+  ): AbsolutePath | null {
+    if (specifier.startsWith("./") || specifier.startsWith("../")) {
+      return path.resolve(path.dirname(baseFile), specifier) as AbsolutePath;
+    }
+    if (specifier.startsWith("@/")) {
+      return path.resolve(
+        this.projectRoot,
+        "src",
+        specifier.slice(2)
+      ) as AbsolutePath;
+    }
+    if (specifier.startsWith("/")) {
+      return path.resolve(this.projectRoot, specifier.slice(1)) as AbsolutePath;
+    }
+    return null;
+  }
+
+  private async resolveWithExtensions(
+    basePath: AbsolutePath
+  ): Promise<AbsolutePath | null> {
+    if (this.resolutionCache.has(basePath))
+      return this.resolutionCache.get(basePath)!;
+
+    const ext = path.extname(basePath) as Extension;
+    const candidates: string[] = CODE_EXTENSIONS.has(ext)
+      ? [basePath]
+      : Array.from(CODE_EXTENSIONS).flatMap((e) => [
+          `${basePath}${e}`,
+          path.join(basePath, `index${e}`),
+        ]);
+
+    for (const candidate of candidates) {
+      try {
+        await fs.access(candidate);
+        const resolved = candidate as AbsolutePath;
+        this.resolutionCache.set(basePath, resolved);
+        return resolved;
+      } catch {
+        continue;
+      }
+    }
+
+    this.resolutionCache.set(basePath, null);
+    return null;
+  }
+
+  private formatFileSource(file: FileContent): string {
+    if (file.error) return `// Error en ${file.path}: ${file.error}`;
+    const ext = path.extname(file.path).slice(1) || "txt";
+    return `[${path.basename(file.path)}](${file.path})\n\n\`\`\`${ext}\n${
+      file.content
+    }\n\`\`\``;
+  }
+
+  async getFileContentsWithDeps(paths: string[]): Promise<FileContent[]> {
+    const uniquePaths = Array.from(
+      new Set(paths.map((p) => path.resolve(p) as AbsolutePath))
+    );
+    const results: FileContent[] = [];
+
+    // Procesamiento por lotes para evitar saturar el sistema de archivos
+    for (let i = 0; i < uniquePaths.length; i += this.CONCURRENCY_LIMIT) {
+      const batch = uniquePaths.slice(i, i + this.CONCURRENCY_LIMIT);
+      const batchResults = await Promise.all(
+        batch.map((p) => this.processFile(p))
+      );
+      results.push(...batchResults);
+    }
+
+    return results;
+  }
+
+  private async processFile(currentPath: AbsolutePath): Promise<FileContent> {
+    const ext = path.extname(currentPath).toLowerCase() as Extension;
+
+    if (!currentPath.startsWith(this.projectRoot)) {
+      return {
+        path: currentPath,
+        content: "",
+        error: "Security: Outside root",
+        dependencies: [],
+      };
+    }
+
+    if (!ALLOWED_EXTENSIONS.has(ext)) {
+      return {
+        path: currentPath,
+        content: "",
+        error: `Forbidden extension: ${ext}`,
+        dependencies: [],
+      };
+    }
+
+    try {
+      const content = await fs.readFile(currentPath, "utf-8");
+      const dependencies = new Set<string>();
+
+      if (CODE_EXTENSIONS.has(ext)) {
+        const matches = [...content.matchAll(IMPORT_REGEX)];
+        const specifiers = matches.map((m) => m[1] || m[2]).filter(Boolean);
+
+        for (const specifier of specifiers) {
+          const base = this.resolveImportPath(currentPath, specifier);
+          if (base) {
+            const resolved = await this.resolveWithExtensions(base);
+            if (resolved) dependencies.add(resolved);
+          }
+        }
+      }
+
+      const fileData: FileContent = {
+        path: currentPath,
+        content,
+        dependencies: Array.from(dependencies),
+      };
+
+      return { ...fileData, sourceCode: this.formatFileSource(fileData) };
+    } catch (err) {
+      return {
+        path: currentPath,
+        content: "",
+        error: err instanceof Error ? err.message : String(err),
+        dependencies: [],
+      };
     }
   }
 
-  return files;
+  async loadProjectGraph(
+    entryPoints: string[],
+    includeDeps = true
+  ): Promise<FileContent[]> {
+    const visited = new Set<AbsolutePath>();
+    const results = new Map<AbsolutePath, FileContent>();
+    let queue: AbsolutePath[] = entryPoints.map(
+      (p) => path.resolve(p) as AbsolutePath
+    );
+
+    while (queue.length > 0) {
+      const toProcess = queue.filter((p) => !visited.has(p));
+      queue = [];
+      if (toProcess.length === 0) break;
+
+      toProcess.forEach((p) => visited.add(p));
+      const processedFiles = await this.getFileContentsWithDeps(toProcess);
+
+      for (const file of processedFiles) {
+        const absPath = file.path as AbsolutePath;
+        results.set(absPath, file);
+
+        if (includeDeps && file.dependencies) {
+          for (const dep of file.dependencies) {
+            if (!visited.has(dep as AbsolutePath))
+              queue.push(dep as AbsolutePath);
+          }
+        }
+      }
+      if (!includeDeps) break;
+    }
+    return Array.from(results.values());
+  }
 }
 
-const getFileSourceCode = (fileContent: FileContent): string => {
-  if (fileContent.error) return "";
+export const fileService = new FileService();
 
-  const fileName = path.basename(fileContent.path);
-  const ext = path.extname(fileName).slice(1) || "txt";
-
-  return `\
-[${fileName}](${fileContent.path})
-
-\`\`\`${ext}
-${fileContent.content}
-\`\`\``;
-};
-
-function isPathInsideBase(basePath: string, candidatePath: string) {
-  const relative = path.relative(basePath, candidatePath);
-  return (
-    relative === "" ||
-    (!relative.startsWith("..") && !path.isAbsolute(relative))
-  );
-}
-
-export async function getFilePaths(
-  folder: string = config.TARGET_PROJECT_PATH,
-  extensions: Set<string> = DEFAULT_ALLOWED_EXTENSIONS,
-  ignore: string[] = DEFAULT_IGNORE,
+export async function walkDir(
+  dir: string,
+  extensions: ReadonlySet<Extension> = ALLOWED_EXTENSIONS,
+  ignore: Set<string> = DEFAULT_IGNORE
 ): Promise<string[]> {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const promises = entries.map(async (entry) => {
+    if (ignore.has(entry.name)) return [];
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) return walkDir(fullPath, extensions, ignore);
+    return entry.isFile() &&
+      extensions.has(path.extname(entry.name).toLowerCase() as Extension)
+      ? [fullPath.replace(/\\/g, "/")]
+      : [];
+  });
+  return (await Promise.all(promises)).flat();
+}
+
+export const getFilePaths = async (
+  folder: string = config.TARGET_PROJECT_PATH,
+  extensions: ReadonlySet<Extension> = ALLOWED_EXTENSIONS,
+  ignore: string[] = Array.from(DEFAULT_IGNORE)
+) => {
   const stat = await fs.stat(folder).catch(() => null);
-
-  if (!stat) {
-    throw new Error(`La carpeta "${folder}" no existe.`);
-  }
-
-  if (!stat.isDirectory()) {
-    throw new Error(`"${folder}" no es una carpeta.`);
-  }
-
-  return walkDir(folder, extensions, ignore);
-}
-
-export async function getFileContents(paths: string[]): Promise<FileContent[]> {
-  const basePath = path.resolve(config.TARGET_PROJECT_PATH);
-  const uniquePaths = [...new Set(paths)].map((p) => path.resolve(p));
-
-  return Promise.all(
-    uniquePaths.map(async (candidatePath) => {
-      const ext = path.extname(candidatePath).toLowerCase();
-
-      if (!isPathInsideBase(basePath, candidatePath)) {
-        return {
-          path: candidatePath,
-          content: "",
-          error: "Ruta inválida: el archivo está fuera del proyecto permitido",
-        };
-      }
-
-      if (!DEFAULT_ALLOWED_EXTENSIONS.has(ext)) {
-        return {
-          path: candidatePath,
-          content: "",
-          error: `Extensión no permitida: ${ext || "(sin extensión)"}`,
-        };
-      }
-
-      try {
-        const content = await fs.readFile(candidatePath, "utf-8");
-        const sourceCode = getFileSourceCode({ path: candidatePath, content });
-        return { path: candidatePath, content, sourceCode };
-      } catch (error) {
-        return {
-          path: candidatePath,
-          content: "",
-          error: String(error),
-        };
-      }
-    }),
-  );
-}
+  if (!stat?.isDirectory()) throw new Error(`Path invalido: ${folder}`);
+  return walkDir(folder, extensions, new Set(ignore));
+};

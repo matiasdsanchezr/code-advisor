@@ -10,18 +10,19 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useChatStore } from "@/stores/chat-store";
+import { createCodePlugin } from "@streamdown/code";
 import { useMemo, useState, useTransition } from "react";
+import { Streamdown } from "streamdown";
 import { useShallow } from "zustand/shallow";
 import { buildPrompt } from "../../utils/build-prompt";
 import { FileExplorer } from "./file-explorer";
 import { GeneratedUserPrompt } from "./generated-user-prompt";
 import { SystemPromptDialog } from "./system-prompt-dialog";
-import { createCodePlugin } from "@streamdown/code";
-import { Streamdown } from "streamdown";
 
 export const ChatShell = ({ filePaths }: { filePaths: string[] }) => {
   return <ChatShellContent filePaths={filePaths} />;
@@ -34,9 +35,11 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
     systemPrompt,
     fileContents,
     agentResponse,
+    includeDependencies,
     setUserQuery,
     setPromptData,
     setAgentResponse,
+    setIncludeDependencies,
     resetChatResult,
     resetAll,
   } = useChatStore(
@@ -46,12 +49,14 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       systemPrompt: s.systemPrompt,
       fileContents: s.fileContents,
       agentResponse: s.agentResponse,
+      includeDependencies: s.includeDependencies,
       setUserQuery: s.setUserQuery,
       setPromptData: s.setFileContents,
       setAgentResponse: s.setAgentResponse,
+      setIncludeDependencies: s.setIncludeDependencies,
       resetChatResult: s.resetChatResult,
       resetAll: s.resetAll,
-    })),
+    }))
   );
 
   const [showFileExplorer, setShowFileExplorer] = useState(true);
@@ -83,7 +88,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       fileContents
         .filter((file) => file.error)
         .map((file) => `${file.path}: ${file.error}`),
-    [fileContents],
+    [fileContents]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -101,7 +106,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
 
   const validFiles = useMemo(
     () => fileContents.filter((f) => !f.error && f.sourceCode),
-    [fileContents],
+    [fileContents]
   );
   const isPromptGenerated = validFiles.length > 0 && !!userQuery;
   const isDisabled = isPending || isAgentPending || isPromptGenerated;
@@ -110,9 +115,9 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       buildPrompt(
         systemPrompt,
         userQuery,
-        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n"),
+        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n")
       ),
-    [systemPrompt, userQuery, validFiles],
+    [systemPrompt, userQuery, validFiles]
   );
 
   return (
@@ -159,6 +164,23 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
           )}
 
           <form action={handleGeneratePrompt} className="flex flex-col gap-4">
+            <div className="flex items-center gap-2 py-1">
+              <Checkbox
+                id="include-deps"
+                checked={includeDependencies}
+                onCheckedChange={(val) => setIncludeDependencies(!!val)}
+                disabled={isDisabled}
+              />
+              <Label htmlFor="include-deps" className="cursor-pointer">
+                Incluir dependencias de los archivos seleccionados
+              </Label>
+              {/* Input oculto para que viaje en el FormData */}
+              <input
+                type="hidden"
+                name="includeDependencies"
+                value={String(includeDependencies)}
+              />
+            </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="user-query">Tu consulta</Label>
               <Textarea

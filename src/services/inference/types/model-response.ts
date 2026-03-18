@@ -1,4 +1,4 @@
 export type ModelResponse = {
   response: string;
-  thoughts?: string;
+  reasoning?: string;
 };

@@ -77,7 +77,7 @@ export class OpenAiClient implements AIClient {
 
     return {
       response: message.content,
-      thoughts: message.reasoning ?? message.reasoning_content,
+      reasoning: message.reasoning ?? message.reasoning_content,
     };
   };
 
@@ -133,7 +133,7 @@ export class OpenAiClient implements AIClient {
 
     return {
       response,
-      thoughts: reasoning,
+      reasoning: reasoning,
     };
   };
 }

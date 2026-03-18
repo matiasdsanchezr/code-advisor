@@ -12,6 +12,7 @@ interface ChatState {
   systemPrompt: string;
   fileContents: FileContent[];
   agentResponse: AgentResponse;
+  includeDependencies: boolean;
 }
 
 interface ChatActions {
@@ -20,6 +21,7 @@ interface ChatActions {
   setSystemPrompt: (prompt: string) => void;
   setFileContents: (data: FileContent[]) => void;
   setAgentResponse: (response: AgentResponse) => void;
+  setIncludeDependencies: (val: boolean) => void;
   resetSystemPrompt: () => void;
   resetChatResult: () => void;
   resetAll: () => void;
@@ -31,6 +33,7 @@ const initialState: ChatState = {
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   fileContents: [],
   agentResponse: { response: "" },
+  includeDependencies: true,
 };
 
 export const useChatStore = create<ChatState & ChatActions>()(
@@ -43,6 +46,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
       setSystemPrompt: (prompt) => set({ systemPrompt: prompt }),
       setFileContents: (data) => set({ fileContents: data }),
       setAgentResponse: (response) => set({ agentResponse: response }),
+      setIncludeDependencies: (val) => set({ includeDependencies: val }),
 
       resetSystemPrompt: () => set({ systemPrompt: DEFAULT_SYSTEM_PROMPT }),
       resetChatResult: () =>
@@ -60,6 +64,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
         userQuery: state.userQuery,
         systemPrompt: state.systemPrompt,
         agentResponse: state.agentResponse,
+        includeDependencies: state.includeDependencies,
       }),
     }
   )

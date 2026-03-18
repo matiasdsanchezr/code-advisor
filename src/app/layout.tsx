@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { getAiProviderState } from "@/services/ai-provider/ai-provider-service";
+import { getAiProviderState } from "@/services/inference/inference-service";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import { Navbar } from "./_components/navbar";

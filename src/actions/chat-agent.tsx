@@ -1,7 +1,7 @@
 "use server";
 
 import { config } from "@/lib/config";
-import { generateContent } from "@/services/ai-provider/ai-provider-service";
+import { generateContent } from "@/services/inference/inference-service";
 import { ActionState } from "@/types/action-state";
 import { AgentResponse } from "@/types/agent-response";
 import fs from "node:fs/promises";

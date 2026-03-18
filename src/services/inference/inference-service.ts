@@ -7,12 +7,6 @@ import { VertexClient } from "./api/vertex/client";
 import { AIClient } from "./types/ai-client";
 import { GenerateResponseParams } from "./types/response-options";
 
-export type AiProviderState = {
-  model: string;
-  isBusy: boolean;
-  provider: string;
-};
-
 export type Provider =
   | "genai"
   | "gemini-cli"
