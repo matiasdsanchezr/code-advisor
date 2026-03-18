@@ -25,7 +25,7 @@ const DEFAULT_IGNORE = [
 async function walkDir(
   dir: string,
   extensions: Set<string>,
-  ignore: string[]
+  ignore: string[],
 ): Promise<string[]> {
   const entries = await fs.readdir(dir, { withFileTypes: true });
   const files: string[] = [];
@@ -48,24 +48,6 @@ async function walkDir(
   return files;
 }
 
-export async function getFilePaths(
-  folder: string = config.TARGET_PROJECT_PATH,
-  extensions: Set<string> = DEFAULT_ALLOWED_EXTENSIONS,
-  ignore: string[] = DEFAULT_IGNORE
-): Promise<string[]> {
-  const stat = await fs.stat(folder).catch(() => null);
-
-  if (!stat) {
-    throw new Error(`La carpeta "${folder}" no existe.`);
-  }
-
-  if (!stat.isDirectory()) {
-    throw new Error(`"${folder}" no es una carpeta.`);
-  }
-
-  return walkDir(folder, extensions, ignore);
-}
-
 const getFileSourceCode = (fileContent: FileContent): string => {
   if (fileContent.error) return "";
 
@@ -86,6 +68,24 @@ function isPathInsideBase(basePath: string, candidatePath: string) {
     relative === "" ||
     (!relative.startsWith("..") && !path.isAbsolute(relative))
   );
+}
+
+export async function getFilePaths(
+  folder: string = config.TARGET_PROJECT_PATH,
+  extensions: Set<string> = DEFAULT_ALLOWED_EXTENSIONS,
+  ignore: string[] = DEFAULT_IGNORE,
+): Promise<string[]> {
+  const stat = await fs.stat(folder).catch(() => null);
+
+  if (!stat) {
+    throw new Error(`La carpeta "${folder}" no existe.`);
+  }
+
+  if (!stat.isDirectory()) {
+    throw new Error(`"${folder}" no es una carpeta.`);
+  }
+
+  return walkDir(folder, extensions, ignore);
 }
 
 export async function getFileContents(paths: string[]): Promise<FileContent[]> {
@@ -123,6 +123,6 @@ export async function getFileContents(paths: string[]): Promise<FileContent[]> {
           error: String(error),
         };
       }
-    })
+    }),
   );
 }

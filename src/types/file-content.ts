@@ -3,4 +3,5 @@ export interface FileContent {
   content: string;
   sourceCode?: string;
   error?: string;
+  dependencies?: string[];
 }

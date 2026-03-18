@@ -4,6 +4,6 @@ import { GenerateResponseParams } from "./response-options";
 export type AIClient = {
   generateResponse: (params: GenerateResponseParams) => Promise<ModelResponse>;
   generateResponseStream: (
-    params: GenerateResponseParams
+    params: GenerateResponseParams,
   ) => Promise<ModelResponse>;
 };
