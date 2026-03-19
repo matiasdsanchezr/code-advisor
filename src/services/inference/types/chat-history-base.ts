@@ -1,5 +1,5 @@
 export interface ChatHistoryBase<T, U> {
-  getCopy(): ChatHistoryBase<T, U>;
+  clone(): ChatHistoryBase<T, U>;
 
   setMessages(messages: T[]): void;
 

@@ -1,4 +1,4 @@
-import { FileCode, LoaderCircle } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 
 type NavbarProps = {
   chatAgentInfo: { model: string; provider: string };
@@ -12,7 +12,7 @@ export const Navbar = ({ chatAgentInfo }: NavbarProps) => {
       <div className="mx-auto flex min-h-16 w-full max-w-7xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex size-10 items-center justify-center rounded-xl bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900">
-            <FileCode className="size-5" />
+            <span className="icon-[mingcute--chat-4-ai-line] size-5"></span>
           </div>
 
           <div className="min-w-0">

@@ -3,14 +3,17 @@ import "server-only";
 import { spawn } from "child_process";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
-import { AIClient } from "../../types/ai-client";
-import { ModelResponse } from "../../types/model-response";
-import { GenerateResponseParams } from "../../types/response-options";
+import { InferenceClient } from "../../types/inference-client";
+import { InferenceRequestOptions } from "../../types/inference-request-options";
+import { InferenceResponse } from "../../types/inference-response";
 
-export class GeminiCliClient implements AIClient {
+/**
+ * Cliente que usa una instancia de Gemini Cli local para generar una respuesta usando un comando de consola
+ */
+export class GeminiCliClient implements InferenceClient {
   public generateResponse = async (
-    params: GenerateResponseParams
-  ): Promise<ModelResponse> => {
+    params: InferenceRequestOptions,
+  ): Promise<InferenceResponse> => {
     const model = params.model;
     const storageDir = path.join(process.cwd(), "storage");
     const filePath = path.join(storageDir, "input.md");
@@ -57,13 +60,13 @@ export class GeminiCliClient implements AIClient {
 
       if (params.debug) {
         console.log(
-          `Ejecutando comando Gemini CLI para el archivo: ${filePath}`
+          `Ejecutando comando Gemini CLI para el archivo: ${filePath}`,
         );
       }
     });
   };
 
-  public generateResponseStream(): Promise<ModelResponse> {
+  public generateResponseStream(): Promise<InferenceResponse> {
     throw new Error("Modo streaming no disponible");
   }
 }

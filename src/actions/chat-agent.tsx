@@ -21,7 +21,7 @@ export async function generateAiAnswer(
       model: config.MODEL,
     });
     await fs.writeFile(
-      path.join(process.cwd(), "response.md"),
+      path.join(process.cwd(), "storage", "outputs", "response.md"),
       modelResponse.response,
       "utf-8",
     );

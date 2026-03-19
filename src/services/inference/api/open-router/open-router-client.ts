@@ -1,7 +1,7 @@
 import "server-only";
 
 import { config } from "@/lib/config";
-import { OpenAiClient } from "../open-ai/client";
+import { OpenAiClient } from "../open-ai/open-ai-client";
 
 export type OpenRouterModel =
   | "deepseek/deepseek-chat-v3-0324:free"

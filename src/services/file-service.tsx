@@ -34,6 +34,7 @@ const ALLOWED_EXTENSIONS: ReadonlySet<Extension> = new Set([
   ...CODE_EXTENSIONS,
   ".md",
   ".json",
+  ".css",
 ]);
 
 const IMPORT_REGEX =
@@ -50,26 +51,29 @@ export class FileService {
 
   private resolveImportPath(
     baseFile: AbsolutePath,
-    specifier: string
+    modulePath: string,
   ): AbsolutePath | null {
-    if (specifier.startsWith("./") || specifier.startsWith("../")) {
-      return path.resolve(path.dirname(baseFile), specifier) as AbsolutePath;
+    if (modulePath.startsWith("./") || modulePath.startsWith("../")) {
+      return path.resolve(path.dirname(baseFile), modulePath) as AbsolutePath;
     }
-    if (specifier.startsWith("@/")) {
+    if (modulePath.startsWith("@/")) {
       return path.resolve(
         this.projectRoot,
         "src",
-        specifier.slice(2)
+        modulePath.slice(2),
       ) as AbsolutePath;
     }
-    if (specifier.startsWith("/")) {
-      return path.resolve(this.projectRoot, specifier.slice(1)) as AbsolutePath;
+    if (modulePath.startsWith("/")) {
+      return path.resolve(
+        this.projectRoot,
+        modulePath.slice(1),
+      ) as AbsolutePath;
     }
     return null;
   }
 
   private async resolveWithExtensions(
-    basePath: AbsolutePath
+    basePath: AbsolutePath,
   ): Promise<AbsolutePath | null> {
     if (this.resolutionCache.has(basePath))
       return this.resolutionCache.get(basePath)!;
@@ -77,9 +81,9 @@ export class FileService {
     const ext = path.extname(basePath) as Extension;
     const candidates: string[] = CODE_EXTENSIONS.has(ext)
       ? [basePath]
-      : Array.from(CODE_EXTENSIONS).flatMap((e) => [
-          `${basePath}${e}`,
-          path.join(basePath, `index${e}`),
+      : Array.from(CODE_EXTENSIONS).flatMap((ext) => [
+          `${basePath}${ext}`,
+          path.join(basePath, `index${ext}`),
         ]);
 
     for (const candidate of candidates) {
@@ -105,9 +109,11 @@ export class FileService {
     }\n\`\`\``;
   }
 
-  async getFileContentsWithDeps(paths: string[]): Promise<FileContent[]> {
+  async getFileContentsWithDependencies(
+    paths: string[],
+  ): Promise<FileContent[]> {
     const uniquePaths = Array.from(
-      new Set(paths.map((p) => path.resolve(p) as AbsolutePath))
+      new Set(paths.map((p) => path.resolve(p) as AbsolutePath)),
     );
     const results: FileContent[] = [];
 
@@ -115,7 +121,7 @@ export class FileService {
     for (let i = 0; i < uniquePaths.length; i += this.CONCURRENCY_LIMIT) {
       const batch = uniquePaths.slice(i, i + this.CONCURRENCY_LIMIT);
       const batchResults = await Promise.all(
-        batch.map((p) => this.processFile(p))
+        batch.map((p) => this.processFile(p)),
       );
       results.push(...batchResults);
     }
@@ -150,12 +156,14 @@ export class FileService {
 
       if (CODE_EXTENSIONS.has(ext)) {
         const matches = [...content.matchAll(IMPORT_REGEX)];
-        const specifiers = matches.map((m) => m[1] || m[2]).filter(Boolean);
+        const specifiers = matches
+          .map((match) => match[1] || match[2])
+          .filter(Boolean);
 
         for (const specifier of specifiers) {
-          const base = this.resolveImportPath(currentPath, specifier);
-          if (base) {
-            const resolved = await this.resolveWithExtensions(base);
+          const potentialPath = this.resolveImportPath(currentPath, specifier);
+          if (potentialPath) {
+            const resolved = await this.resolveWithExtensions(potentialPath);
             if (resolved) dependencies.add(resolved);
           }
         }
@@ -180,21 +188,22 @@ export class FileService {
 
   async loadProjectGraph(
     entryPoints: string[],
-    includeDeps = true
+    includeDeps = true,
   ): Promise<FileContent[]> {
     const visited = new Set<AbsolutePath>();
     const results = new Map<AbsolutePath, FileContent>();
-    let queue: AbsolutePath[] = entryPoints.map(
-      (p) => path.resolve(p) as AbsolutePath
+    let nodesToProcess: AbsolutePath[] = entryPoints.map(
+      (p) => path.resolve(p) as AbsolutePath,
     );
 
-    while (queue.length > 0) {
-      const toProcess = queue.filter((p) => !visited.has(p));
-      queue = [];
+    while (nodesToProcess.length > 0) {
+      const toProcess = nodesToProcess.filter((p) => !visited.has(p));
+      nodesToProcess = [];
       if (toProcess.length === 0) break;
 
       toProcess.forEach((p) => visited.add(p));
-      const processedFiles = await this.getFileContentsWithDeps(toProcess);
+      const processedFiles =
+        await this.getFileContentsWithDependencies(toProcess);
 
       for (const file of processedFiles) {
         const absPath = file.path as AbsolutePath;
@@ -203,7 +212,7 @@ export class FileService {
         if (includeDeps && file.dependencies) {
           for (const dep of file.dependencies) {
             if (!visited.has(dep as AbsolutePath))
-              queue.push(dep as AbsolutePath);
+              nodesToProcess.push(dep as AbsolutePath);
           }
         }
       }
@@ -215,16 +224,17 @@ export class FileService {
 
 export const fileService = new FileService();
 
-export async function walkDir(
+async function recursiveFileSearch(
   dir: string,
   extensions: ReadonlySet<Extension> = ALLOWED_EXTENSIONS,
-  ignore: Set<string> = DEFAULT_IGNORE
+  ignore: Set<string> = DEFAULT_IGNORE,
 ): Promise<string[]> {
   const entries = await fs.readdir(dir, { withFileTypes: true });
   const promises = entries.map(async (entry) => {
     if (ignore.has(entry.name)) return [];
     const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) return walkDir(fullPath, extensions, ignore);
+    if (entry.isDirectory())
+      return recursiveFileSearch(fullPath, extensions, ignore);
     return entry.isFile() &&
       extensions.has(path.extname(entry.name).toLowerCase() as Extension)
       ? [fullPath.replace(/\\/g, "/")]
@@ -236,9 +246,9 @@ export async function walkDir(
 export const getFilePaths = async (
   folder: string = config.TARGET_PROJECT_PATH,
   extensions: ReadonlySet<Extension> = ALLOWED_EXTENSIONS,
-  ignore: string[] = Array.from(DEFAULT_IGNORE)
+  ignore: string[] = Array.from(DEFAULT_IGNORE),
 ) => {
   const stat = await fs.stat(folder).catch(() => null);
   if (!stat?.isDirectory()) throw new Error(`Path invalido: ${folder}`);
-  return walkDir(folder, extensions, new Set(ignore));
+  return recursiveFileSearch(folder, extensions, new Set(ignore));
 };

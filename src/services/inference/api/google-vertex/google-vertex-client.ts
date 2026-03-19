@@ -2,9 +2,9 @@ import "server-only";
 
 import { config } from "@/lib/config";
 import { GoogleGenAI } from "@google/genai";
-import { GenAIClient } from "../genai/client";
+import { GoogleGenAiClient } from "../google-genai/google-genai-client";
 
-export class VertexClient extends GenAIClient {
+export class GoogleVertexClient extends GoogleGenAiClient {
   protected _client = new GoogleGenAI({
     vertexai: true,
     httpOptions: { apiVersion: "v1" },

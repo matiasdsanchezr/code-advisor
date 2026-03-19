@@ -6,9 +6,10 @@ import {
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
 } from "openai/resources/chat/completions";
-import { GenerateResponseParams } from "../../types/response-options";
-import { ModelResponse } from "../../types/model-response";
-import { AIClient } from "../../types/ai-client";
+import { InferenceRequestOptions } from "../../types/inference-request-options";
+import { InferenceResponse } from "../../types/inference-response";
+import { InferenceClient } from "../../types/inference-client";
+import logger from "@/lib/logger";
 
 type OpenAIChatCompletionParamsNonStreaming =
   ChatCompletionCreateParamsNonStreaming & {
@@ -31,7 +32,7 @@ type OpenAIChoiceDelta =
     reasoning?: string;
   };
 
-export class OpenAiClient implements AIClient {
+export class OpenAiClient implements InferenceClient {
   private _client;
 
   constructor(baseURL: string, apiKey: string) {
@@ -43,8 +44,8 @@ export class OpenAiClient implements AIClient {
   }
 
   public generateResponse = async (
-    params: GenerateResponseParams
-  ): Promise<ModelResponse> => {
+    params: InferenceRequestOptions,
+  ): Promise<InferenceResponse> => {
     const client = this._client;
     const model = params.model;
     const messages: ChatCompletionMessageParam[] = [
@@ -59,7 +60,7 @@ export class OpenAiClient implements AIClient {
       },
       ...params.messages,
     ];
-    const body: OpenAIChatCompletionParamsNonStreaming = {
+    const chatCompletion = await client.chat.completions.create({
       top_p: params.config.topP,
       temperature: params.config.temperature,
       response_format: params.responseJsonSchema
@@ -68,9 +69,8 @@ export class OpenAiClient implements AIClient {
       chat_template_kwargs: { thinking: true },
       model,
       messages,
-    };
-    const chatCompletion = await client.chat.completions.create(body);
-    if (params.debug) console.log(JSON.stringify(chatCompletion, null, 2));
+    } as OpenAIChatCompletionParamsNonStreaming);
+    logger.debug(JSON.stringify(chatCompletion, null, 2));
 
     const message = chatCompletion.choices[0].message as OpenAIReasoningMessage;
     if (!message.content) throw new Error("Empty response");
@@ -82,8 +82,8 @@ export class OpenAiClient implements AIClient {
   };
 
   public generateResponseStream = async (
-    params: GenerateResponseParams
-  ): Promise<ModelResponse> => {
+    params: InferenceRequestOptions,
+  ): Promise<InferenceResponse> => {
     const client = this._client;
     const model = params.model;
     const messages: ChatCompletionMessageParam[] = [
@@ -98,7 +98,7 @@ export class OpenAiClient implements AIClient {
       },
       ...params.messages,
     ];
-    const body: OpenAIChatCompletionParamsStreaming = {
+    const chatCompletion = await client.chat.completions.create({
       response_format: params.responseJsonSchema
         ? { type: "json_object" }
         : undefined,
@@ -108,8 +108,7 @@ export class OpenAiClient implements AIClient {
       messages,
       chat_template_kwargs: { thinking: true },
       stream: true,
-    };
-    const chatCompletion = await client.chat.completions.create(body);
+    } as OpenAIChatCompletionParamsStreaming);
 
     let response = "";
     let reasoning = "";
@@ -120,7 +119,7 @@ export class OpenAiClient implements AIClient {
         reasoning += delta.reasoning_content ?? delta.reasoning;
         if (params.debug)
           process.stdout.write(
-            delta.reasoning_content ?? delta.reasoning ?? ""
+            delta.reasoning_content ?? delta.reasoning ?? "",
           );
       }
       response += chunk.choices[0]?.delta?.content || "";
@@ -129,11 +128,11 @@ export class OpenAiClient implements AIClient {
       }
     }
 
-    if (params.debug) console.log(reasoning, response);
+    logger.debug(JSON.stringify(chatCompletion, null, 2));
 
     return {
       response,
-      reasoning: reasoning,
+      reasoning,
     };
   };
 }

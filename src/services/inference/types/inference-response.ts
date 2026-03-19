@@ -1,4 +1,4 @@
-export type ModelResponse = {
+export type InferenceResponse = {
   response: string;
   reasoning?: string;
 };

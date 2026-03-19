@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,6 @@ import {
   Folder,
   FolderOpen,
   FileCode,
-  File,
   SquareCheck,
   Trash2,
 } from "lucide-react";
@@ -30,13 +29,14 @@ interface TreeNode {
   filePath?: string;
 }
 
-function getCommonBase(paths: string[]): string {
+function getCommonRootDirectory(paths: string[]): string {
   if (!paths.length) return "";
-  const split = paths.map((p) => p.split("/"));
-  const minLen = Math.min(...split.map((s) => s.length));
+  const segmentedPaths = paths.map((p) => p.split("/"));
+  const minLen = Math.min(...segmentedPaths.map((s) => s.length));
   const common: string[] = [];
   for (let i = 0; i < minLen; i++) {
-    if (split.every((s) => s[i] === split[0][i])) common.push(split[0][i]);
+    if (segmentedPaths.every((s) => s[i] === segmentedPaths[0][i]))
+      common.push(segmentedPaths[0][i]);
     else break;
   }
   return common.join("/");
@@ -45,23 +45,19 @@ function getCommonBase(paths: string[]): string {
 function buildTree(filePaths: string[]): {
   roots: TreeNode[];
   folderToFiles: Map<string, string[]>;
-  fileIdToPath: Map<string, string>;
 } {
-  const base = getCommonBase(filePaths);
+  const base = getCommonRootDirectory(filePaths);
   const roots: TreeNode[] = [];
   const nodeMap = new Map<string, TreeNode>();
-  const fileIdToPath = new Map<string, string>();
 
-  for (const absPath of filePaths) {
+  filePaths.forEach((absPath) => {
     const relative = absPath.slice(base.length).replace(/^\//, "");
     const parts = relative.split("/").filter(Boolean);
-    let parentNode: TreeNode | undefined = undefined;
+    let parentNode: TreeNode | undefined;
 
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i];
+    parts.forEach((part, i) => {
       const isFile = i === parts.length - 1;
-      const pathSegments = parts.slice(0, i + 1);
-      const nodeId = `${base}/${pathSegments.join("/")}`;
+      const nodeId = `${base}/${parts.slice(0, i + 1).join("/")}`;
 
       if (!nodeMap.has(nodeId)) {
         const newNode: TreeNode = {
@@ -72,33 +68,31 @@ function buildTree(filePaths: string[]): {
           filePath: isFile ? absPath : undefined,
         };
         nodeMap.set(nodeId, newNode);
-        if (isFile) {
-          fileIdToPath.set(nodeId, absPath);
-        }
 
         if (parentNode) {
           parentNode.children.push(newNode);
-        } else {
-          if (i === 0) {
-            roots.push(newNode);
-          }
+        } else if (i === 0) {
+          roots.push(newNode);
         }
       }
-
       parentNode = nodeMap.get(nodeId);
-    }
-  }
+    });
+  });
 
   const folderToFiles = new Map<string, string[]>();
-  function collectFiles(node: TreeNode): string[] {
-    if (node.isFile) return node.filePath ? [node.filePath] : [];
-    const files = node.children.flatMap(collectFiles);
-    folderToFiles.set(node.id, files);
-    return files;
-  }
-  roots.forEach(collectFiles);
+  const collectFiles = (node: TreeNode): string[] => {
+    const files = node.isFile
+      ? node.filePath
+        ? [node.filePath]
+        : []
+      : node.children.flatMap(collectFiles);
 
-  return { roots, folderToFiles, fileIdToPath };
+    if (!node.isFile) folderToFiles.set(node.id, files);
+    return files;
+  };
+
+  roots.forEach(collectFiles);
+  return { roots, folderToFiles };
 }
 
 function IndeterminateCheckbox({
@@ -114,20 +108,8 @@ function IndeterminateCheckbox({
   className?: string;
   disabled?: boolean;
 }) {
-  const ref = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (ref.current) {
-      const input = ref.current.querySelector("input");
-      if (input) {
-        input.indeterminate = indeterminate && !checked;
-      }
-    }
-  }, [indeterminate, checked]);
-
   return (
     <Checkbox
-      ref={ref}
       checked={indeterminate ? false : checked}
       indeterminate={indeterminate}
       onCheckedChange={(val) => onCheckedChange(!!val)}
@@ -137,6 +119,15 @@ function IndeterminateCheckbox({
     />
   );
 }
+
+const NodeIcon = ({ isFile, isOpen }: { isFile: boolean; isOpen: boolean }) => {
+  if (isFile) return <FileCode className="h-4 w-4 opacity-50 shrink-0" />;
+  return isOpen ? (
+    <FolderOpen className="h-4 w-4 shrink-0 text-yellow-500" />
+  ) : (
+    <Folder className="h-4 w-4 shrink-0 text-yellow-600" />
+  );
+};
 
 function TreeNodeRow({
   node,
@@ -158,12 +149,13 @@ function TreeNodeRow({
   const { checked, indeterminate } = useMemo(() => {
     if (node.isFile) {
       return {
-        checked: selectedSet.has(node.filePath!),
+        checked: selectedSet.has(node.filePath ?? ""),
         indeterminate: false,
       };
     }
     const files = folderToFiles.get(node.id) ?? [];
-    if (!files.length) return { checked: false, indeterminate: false };
+    if (files.length === 0) return { checked: false, indeterminate: false };
+
     const selectedCount = files.filter((f) => selectedSet.has(f)).length;
     return {
       checked: selectedCount === files.length,
@@ -171,77 +163,55 @@ function TreeNodeRow({
     };
   }, [node, selectedSet, folderToFiles]);
 
-  const hasChildren = !node.isFile && node.children.length > 0;
-
-  const handleClickOpen = useCallback(
-    (e: React.MouseEvent<HTMLLIElement, MouseEvent>) => {
-      if (hasChildren && e.currentTarget === e.target) {
-        e.stopPropagation();
-        setOpen((o) => !o);
-      }
-    },
-    [hasChildren],
-  );
+  const toggleOpen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!node.isFile) setOpen(!open);
+    else onToggle(node);
+  };
 
   return (
-    <li onClick={handleClickOpen} className="select-none">
-      <div
-        className={cn(
-          "flex items-center gap-2 px-2 py-3 md:py-1.5 rounded-lg md:rounded-md cursor-pointer",
-          "hover:bg-muted transition-colors group",
-          "text-sm md:text-xs",
-        )}
-        style={{ paddingLeft: `${Math.min(depth * 12 + 8, 200)}px` }}
-      >
-        {/* Expand/collapse arrow */}
-        {!node.isFile ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen((o) => !o);
-            }}
-            className="p-1 -m-1 rounded hover:bg-muted touch-manipulation"
-            aria-label={open ? "Colapsar carpeta" : "Expandir carpeta"}
-          >
-            <ChevronRight
-              className={cn(
-                "h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-200",
-                open && "rotate-90",
-              )}
-            />
-          </button>
-        ) : (
-          <span className="w-6 md:w-4 shrink-0" />
-        )}
-
-        {/* Icon */}
-        {node.isFile ? (
-          <FileCode className="h-4 w-4 opacity-50 shrink-0" />
-        ) : open ? (
-          <FolderOpen className="h-4 w-4 shrink-0 text-yellow-500" />
-        ) : (
-          <Folder className="h-4 w-4 shrink-0 text-yellow-600" />
-        )}
-
-        <span
+    <li className="select-none">
+      <div className="hover:bg-black/10 dark:hover:bg-muted relative">
+        <div
+          onClick={toggleOpen}
           className={cn(
-            "truncate flex-1",
-            node.isFile ? "text-muted-foreground" : "font-medium",
+            "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer",
+            "transition-colors group text-xs",
           )}
+          style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
-          {node.name}
-        </span>
+          <div className="w-4 h-4 flex items-center justify-center">
+            {!node.isFile && (
+              <ChevronRight
+                className={cn(
+                  "h-3 w-3 transition-transform",
+                  open && "rotate-90",
+                )}
+              />
+            )}
+          </div>
 
+          <NodeIcon isFile={node.isFile} isOpen={open} />
+          <span
+            className={cn(
+              "truncate flex-1",
+              node.isFile ? "text-muted-foreground" : "font-medium",
+            )}
+          >
+            {node.name}
+          </span>
+        </div>
         <IndeterminateCheckbox
           checked={checked}
           indeterminate={indeterminate}
           onCheckedChange={() => onToggle(node)}
           disabled={disabled}
+          className="absolute top-1/2 -translate-y-1/2 right-5 -translate-x-1/2"
         />
       </div>
 
-      {hasChildren && open && (
-        <ul className="space-y-0.5">
+      {open && node.children.length > 0 && (
+        <ul className="mt-0.5">
           {node.children.map((child) => (
             <TreeNodeRow
               key={child.id}
@@ -278,18 +248,20 @@ export function FileExplorer({
     (node: TreeNode) => {
       if (disabled) return;
 
-      const affected: string[] = node.isFile
+      const targetFiles: string[] = node.isFile
         ? node.filePath
           ? [node.filePath]
           : []
         : (folderToFiles.get(node.id) ?? []);
 
-      if (!affected.length) return;
+      if (!targetFiles.length) return;
 
-      const next = new Set(selectedFiles);
-      const allSelected = affected.every((f) => next.has(f));
-      affected.forEach((f) => (allSelected ? next.delete(f) : next.add(f)));
-      setSelectedFiles([...next]);
+      const updatedSelection = new Set(selectedFiles);
+      const allSelected = targetFiles.every((f) => updatedSelection.has(f));
+      targetFiles.forEach((f) =>
+        allSelected ? updatedSelection.delete(f) : updatedSelection.add(f),
+      );
+      setSelectedFiles([...updatedSelection]);
     },
     [disabled, folderToFiles, selectedFiles, setSelectedFiles],
   );
@@ -403,30 +375,42 @@ export function FileExplorer({
                 </p>
               </div>
             ) : (
-              <ul className="space-y-2">
-                {[...selectedFiles].sort().map((file) => (
-                  <li
-                    key={file}
-                    className="flex items-center gap-2 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
-                  >
-                    <File className="h-4 w-4 text-primary shrink-0" />
-                    <span className="text-xs font-mono truncate flex-1 break-all">
-                      {file}
-                    </span>
-                    <button
-                      onClick={() => {
-                        const next = new Set(selectedFiles);
-                        next.delete(file);
-                        setSelectedFiles([...next]);
-                      }}
-                      disabled={disabled}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-destructive/10 rounded transition-all"
-                      aria-label="Deseleccionar archivo"
+              <ul className="space-y-1.5">
+                {[...selectedFiles].sort().map((file) => {
+                  const parts = file.split("/");
+                  const fileName = parts.pop();
+                  const folderPath = parts.join("/");
+
+                  return (
+                    <li
+                      key={file}
+                      className="flex flex-col gap-0.5 p-2 rounded-md border bg-card hover:shadow-sm transition-all group relative overflow-hidden"
                     >
-                      <span className="icon-[fa7-solid--xmark] text-destructive" />
-                    </button>
-                  </li>
-                ))}
+                      <div className="flex items-center gap-2">
+                        <FileCode className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span className="text-[13px] font-medium truncate flex-1">
+                          {fileName}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const next = new Set(selectedFiles);
+                            next.delete(file);
+                            setSelectedFiles([...next]);
+                          }}
+                          disabled={disabled}
+                          className="p-1 hover:bg-destructive/10 rounded-md transition-colors"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive/70 hover:text-destructive" />
+                        </button>
+                      </div>
+                      {folderPath && (
+                        <span className="text-[10px] text-muted-foreground font-mono truncate pl-5">
+                          {folderPath}/
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </ScrollArea>

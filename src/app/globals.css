@@ -137,6 +137,8 @@
 
 [data-streamdown="code-block-body"] {
   overflow-x: scroll;
-  scrollbar-color: rgb(46, 46, 46) rgb(12, 12, 12);
   scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) var(--muted);
+  background-color: var(--card);
+  border-color: var(--border);
 }

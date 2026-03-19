@@ -2,40 +2,40 @@ import { Message } from "../schemas/message.schema";
 import { ChatHistoryBase } from "../types/chat-history-base";
 
 export class ChatHistory implements ChatHistoryBase<Message, string> {
-  private history: Message[] = [];
+  private messages: Message[] = [];
 
   constructor(messages: Message[] = []) {
-    this.history = messages;
+    this.messages = messages;
   }
 
-  public getCopy = () => {
-    return new ChatHistory([...this.history]);
+  public clone = () => {
+    return new ChatHistory([...this.messages]);
   };
 
   public setMessages = (messages: Message[]) => {
-    this.history = messages.map((message) => ({
+    this.messages = messages.map((message) => ({
       role: message.role === "user" ? "user" : "assistant",
       content: message.content,
     }));
   };
 
   public getMessages = () => {
-    return this.history;
+    return this.messages;
   };
 
   public addMessage = (message: Message) => {
-    this.history.push(message);
+    this.messages.push(message);
   };
 
   public addUserMessage = (message: string) => {
-    this.history.push({ role: "user", content: message });
+    this.messages.push({ role: "user", content: message });
   };
 
   public addAssistantMessage = (message: string) => {
-    this.history.push({ role: "assistant", content: message });
+    this.messages.push({ role: "assistant", content: message });
   };
 
   public addSystemMessage = (message: string) => {
-    this.history.push({ role: "system", content: message });
+    this.messages.push({ role: "system", content: message });
   };
 }
