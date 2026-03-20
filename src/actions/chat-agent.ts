@@ -8,7 +8,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 export async function generateAiAnswer(
-  prevState: ActionState<AgentResponse>,
+  _prevState: ActionState<AgentResponse>,
   formData: FormData,
 ): Promise<ActionState<AgentResponse>> {
   try {

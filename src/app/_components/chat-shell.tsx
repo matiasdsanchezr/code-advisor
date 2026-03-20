@@ -1,7 +1,8 @@
 "use client";
 import { generateAiAnswer } from "@/actions/chat-agent";
-import { generatePrompt } from "@/actions/get-source-code";
+import { getFileContents } from "@/actions/get-file-contents";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,37 +15,37 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import { createCodePlugin } from "@streamdown/code";
-import { useMemo, useState, useTransition } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { Streamdown } from "streamdown";
 import { useShallow } from "zustand/shallow";
 import { buildPrompt } from "../../utils/build-prompt";
 import { FileExplorer } from "./file-explorer";
-import { GeneratedUserPrompt } from "./generated-user-prompt";
-import { SystemPromptDialog } from "./system-prompt-dialog";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { GeneratedPrompt } from "./generated-prompt";
+import { SystemPromptMenu } from "./system-prompt-menu";
 
-export const ChatShell = ({ filePaths }: { filePaths: string[] }) => {
-  return <ChatShellContent filePaths={filePaths} />;
+export const ChatShell = ({
+  filePaths,
+  initialPrompts,
+}: {
+  filePaths: string[];
+  initialPrompts: string[];
+}) => {
+  return (
+    <ChatShellContent filePaths={filePaths} initialPrompts={initialPrompts} />
+  );
 };
 
-const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
-  const {
-    selectedFiles,
-    userQuery,
-    systemPrompt,
-    fileContents,
-    agentResponse,
-    includeDependencies,
-    setUserQuery,
-    setFileContents,
-    setAgentResponse,
-    setIncludeDependencies,
-    resetChatResult,
-    resetAll,
-  } = useChatStore(
+const ChatShellContent = ({
+  filePaths,
+  initialPrompts,
+}: {
+  filePaths: string[];
+  initialPrompts: string[];
+}) => {
+  const store = useChatStore(
     useShallow((s) => ({
       selectedFiles: s.selectedFiles,
       userQuery: s.userQuery,
@@ -62,37 +63,44 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
   );
 
   const [showFileExplorer, setShowFileExplorer] = useState(true);
-  const [isAnalyzingFiles, startFileAnalysisTransition] = useTransition();
-  const [isWaitingForInference, startInferenceTransition] = useTransition();
-  const [agentError, setAgentError] = useState<string>("");
+  const [isPromptGenerated, setIsPromptGenerated] = useState(false);
 
-  const handleFetchFileContents = (formData: FormData) => {
-    startFileAnalysisTransition(async () => {
-      const result = await generatePrompt({}, formData);
-      const analyzedFiles = result.data;
-      if (analyzedFiles) setFileContents(analyzedFiles);
-    });
-  };
-
-  const handleAgentAction = (formData: FormData) => {
-    startInferenceTransition(async () => {
-      const result = await generateAiAnswer({ data: agentResponse }, formData);
-      const inferenceResponse = result.data;
-      if (inferenceResponse) {
-        setAgentResponse(inferenceResponse);
-        setAgentError("");
-        return;
+  const [, handleFetchFileContents, isFetchingFiles] = useActionState(
+    async (prevState: unknown, formData: FormData) => {
+      const { data: fileContents, error } = await getFileContents({}, formData);
+      if (fileContents) {
+        store.setFileContents(fileContents);
+        setIsPromptGenerated(true);
+        return { error: null };
       }
-      setAgentError(result.error ?? "Error al generar una respuesta");
-    });
-  };
+      return {
+        error: error ?? "Se produjo un error al analizar los archivos",
+      };
+    },
+    null,
+  );
+
+  const [inferenceState, handleInferenceAction, isWaitingForInference] =
+    useActionState(async (prevState: unknown, formData: FormData) => {
+      const result = await generateAiAnswer(
+        { data: store.agentResponse },
+        formData,
+      );
+      if (result.data) {
+        store.setAgentResponse(result.data);
+        return { error: null };
+      }
+      return {
+        error: result.error ?? "Se produjo un error al generar la respuesta",
+      };
+    }, null);
 
   const fileErrors = useMemo(
     () =>
-      fileContents
+      store.fileContents
         .filter((file) => file.error)
         .map((file) => `${file.path}: ${file.error}`),
-    [fileContents],
+    [store.fileContents],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -100,8 +108,8 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       (e.ctrlKey || e.metaKey) &&
       e.key === "Enter" &&
       !isDisabled &&
-      selectedFiles.length > 0 &&
-      userQuery.trim()
+      store.selectedFiles.length > 0 &&
+      store.userQuery.trim()
     ) {
       e.preventDefault();
       e.currentTarget.form?.requestSubmit();
@@ -109,20 +117,16 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
   };
 
   const validFiles = useMemo(
-    () => fileContents.filter((f) => !f.error && f.sourceCode),
-    [fileContents],
+    () => store.fileContents.filter((f) => !f.error && f.content),
+    [store.fileContents],
   );
-  const isReadyToReview = validFiles.length > 0 && !!userQuery;
+  const isReadyToReview = isPromptGenerated && !!store.userQuery;
   const isDisabled =
-    isAnalyzingFiles || isWaitingForInference || isReadyToReview;
+    isFetchingFiles || isWaitingForInference || isReadyToReview;
+
   const finalPrompt = useMemo(
-    () =>
-      buildPrompt(
-        systemPrompt,
-        userQuery,
-        validFiles.map((f) => f.sourceCode).join("\n\n---\n\n"),
-      ),
-    [systemPrompt, userQuery, validFiles],
+    () => buildPrompt(store.systemPrompt, store.userQuery, validFiles),
+    [store.systemPrompt, store.userQuery, validFiles],
   );
 
   return (
@@ -147,7 +151,10 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
                 Selecciona los archivos y describe la tarea que deseas realizar.
               </CardDescription>
             </div>
-            <SystemPromptDialog disabled={isDisabled} />
+            <SystemPromptMenu
+              disabled={isDisabled}
+              availablePrompts={initialPrompts}
+            />
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
@@ -174,13 +181,13 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
                 {showFileExplorer ? "Ocultar archivos" : "Ver archivos"}
               </span>
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
-                {selectedFiles.length}
+                {store.selectedFiles.length}
               </span>
             </Button>
 
-            {selectedFiles.length > 0 && (
+            {store.selectedFiles.length > 0 && (
               <span className="text-xs text-muted-foreground">
-                {selectedFiles.length} archivo(s) seleccionado(s)
+                {store.selectedFiles.length} archivo(s) seleccionado(s)
               </span>
             )}
           </div>
@@ -221,8 +228,8 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
             <div className="flex items-center gap-2 py-1">
               <Checkbox
                 id="include-deps"
-                checked={includeDependencies}
-                onCheckedChange={(val) => setIncludeDependencies(!!val)}
+                checked={store.includeDependencies}
+                onCheckedChange={(val) => store.setIncludeDependencies(!!val)}
                 disabled={isDisabled}
               />
               <Label htmlFor="include-deps" className="cursor-pointer">
@@ -232,7 +239,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
               <input
                 type="hidden"
                 name="includeDependencies"
-                value={String(includeDependencies)}
+                value={String(store.includeDependencies)}
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -247,10 +254,10 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
               <Textarea
                 id="user-query"
                 name="userQuery"
-                value={userQuery}
-                onChange={(e) => setUserQuery(e.target.value)}
+                value={store.userQuery}
+                onChange={(e) => store.setUserQuery(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Ej: Explícame qué hace esta función y proponé mejoras de rendimiento."
+                placeholder="Ej: Explícame qué hace esta función y propón mejoras de rendimiento."
                 className="min-h-32 text-sm md:text-base"
                 disabled={isDisabled}
               />
@@ -258,24 +265,24 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
                 <span>
                   Selecciona al menos un archivo para generar el prompt.
                 </span>
-                <span>{userQuery.trim().length} caracteres</span>
+                <span>{store.userQuery.trim().length} caracteres</span>
               </div>
             </div>
-            {selectedFiles.map((path) => (
+            {store.selectedFiles.map((path) => (
               <input key={path} type="hidden" name="filePath" value={path} />
             ))}
-            <input type="hidden" name="systemPrompt" value={systemPrompt} />
+            <input
+              type="hidden"
+              name="systemPrompt"
+              value={store.systemPrompt}
+            />
             {!isReadyToReview && (
               <Button
                 type="submit"
-                disabled={
-                  selectedFiles.length === 0 ||
-                  !userQuery.trim() ||
-                  isAnalyzingFiles
-                }
+                disabled={!store.userQuery.trim() || isFetchingFiles}
                 className="inline-flex max-w-60 items-center gap-2"
               >
-                {isAnalyzingFiles ? (
+                {isFetchingFiles ? (
                   <>
                     <span className="icon-[fa7-solid--spinner] animate-spin" />
                     Analizando archivos...
@@ -304,17 +311,26 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
                 Revisa y utiliza el prompt
               </CardTitle>
               <CardDescription className="text-sm md:text-base">
-                Copia el prompt para usarlo en otro LLM o analízalo aquí.
+                Copia el prompt para usarlo en otro LLM o procesa la tarea aquí.
               </CardDescription>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            {/* Seccion de prompt generado */}
-            <GeneratedUserPrompt />
+            {/* Sección de prompt generado */}
+            <GeneratedPrompt
+              display={isReadyToReview}
+              systemPrompt={store.systemPrompt}
+              userQuery={store.userQuery}
+              fileContents={validFiles}
+            />
             <Separator />
             <div className="flex flex-wrap items-center gap-3">
-              <form action={handleAgentAction}>
-                <input type="hidden" name="instruction" value={systemPrompt} />
+              <form action={handleInferenceAction}>
+                <input
+                  type="hidden"
+                  name="instruction"
+                  value={store.systemPrompt}
+                />
                 <input type="hidden" name="input" value={finalPrompt} />
                 <Button
                   type="submit"
@@ -337,7 +353,10 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
 
               <Button
                 variant="outline"
-                onClick={resetChatResult}
+                onClick={() => {
+                  store.resetChatResult();
+                  setIsPromptGenerated(false);
+                }}
                 disabled={isWaitingForInference}
                 className="inline-flex items-center gap-2"
               >
@@ -347,7 +366,10 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
 
               <Button
                 variant="destructive"
-                onClick={resetAll}
+                onClick={() => {
+                  store.resetAll();
+                  setIsPromptGenerated(false);
+                }}
                 disabled={isWaitingForInference}
                 className="inline-flex items-center gap-2 text-destructive hover:text-destructive"
               >
@@ -360,8 +382,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
       )}
 
       {/* --- SECCIÓN 3: Respuesta de la IA --- */}
-      {/* --- SECCIÓN 3: Respuesta de la IA --- */}
-      {(agentResponse.response || agentError) && (
+      {(store.agentResponse.response || inferenceState?.error) && (
         <Card className="overflow-hidden border-border/60 shadow-md transition-all">
           <CardHeader className="border-b bg-muted/30 py-4">
             <div className="flex items-center justify-between">
@@ -378,7 +399,7 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
                   </CardDescription>
                 </div>
               </div>
-              {agentResponse.response && (
+              {store.agentResponse.response && (
                 <Badge variant="outline" className="h-6 gap-1 bg-background/50">
                   <span className="icon-[fa7-solid--check-double] text-[10px] text-green-600" />
                   Generado
@@ -387,9 +408,9 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            {agentResponse.response ? (
-              <div className="relative">
-                <div className="prose prose-sm max-w-none p-6 dark:prose-invert md:prose-base">
+            <div className="min-h-[200px] transition-all duration-500 ease-in-out">
+              {store.agentResponse.response ? (
+                <div className="prose prose-sm max-w-none p-6 dark:prose-invert overflow-anchor-none">
                   <Streamdown
                     plugins={{
                       code: createCodePlugin({
@@ -397,28 +418,29 @@ const ChatShellContent = ({ filePaths }: { filePaths: string[] }) => {
                       }),
                     }}
                   >
-                    {agentResponse.response}
+                    {store.agentResponse.response}
                   </Streamdown>
                 </div>
-
-                <div className="flex items-center gap-2 border-t bg-muted/20 px-6 py-2 text-[10px] text-muted-foreground">
-                  <span className="icon-[fa7-solid--circle-info]" />
-                  Verifica siempre el código generado antes de aplicarlo.
+              ) : isWaitingForInference ? (
+                <div className="p-6 space-y-4">
+                  <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
+                  <div className="h-4 bg-muted animate-pulse rounded w-full" />
+                  <div className="h-4 bg-muted animate-pulse rounded w-5/6" />
                 </div>
-              </div>
-            ) : (
-              <div className="p-6">
-                <Alert
-                  variant="destructive"
-                  className="border-destructive/20 bg-destructive/5"
-                >
-                  <span className="icon-[fa7-solid--circle-exclamation] text-destructive" />
-                  <AlertDescription className="ml-2 font-medium">
-                    {agentError}
-                  </AlertDescription>
-                </Alert>
-              </div>
-            )}
+              ) : (
+                <div className="p-6">
+                  <Alert
+                    variant="destructive"
+                    className="border-destructive/20 bg-destructive/5 flex items-center"
+                  >
+                    <span className="icon-[fa7-solid--circle-exclamation] text-destructive" />
+                    <AlertDescription className="ml-2 font-medium">
+                      {inferenceState?.error}
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       )}

@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
  */
 export async function parseMarkdownTemplate(
   filePath: string,
-  variables: Record<string, string | number>
+  variables: Record<string, string | number>,
 ): Promise<string> {
   try {
     const content = await readFile(filePath, "utf-8");

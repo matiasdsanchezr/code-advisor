@@ -8,6 +8,7 @@ import { config } from "@/lib/config";
 import { FileContent } from "@/types/file-content";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { cache } from "react";
 
 type AbsolutePath = string & { readonly __brand: unique symbol };
 type Extension = `.${string}`;
@@ -101,14 +102,6 @@ export class FileService {
     return null;
   }
 
-  private formatFileSource(file: FileContent): string {
-    if (file.error) return `// Error en ${file.path}: ${file.error}`;
-    const ext = path.extname(file.path).slice(1) || "txt";
-    return `[${path.basename(file.path)}](${file.path})\n\n\`\`\`${ext}\n${
-      file.content
-    }\n\`\`\``;
-  }
-
   async getFileContentsWithDependencies(
     paths: string[],
   ): Promise<FileContent[]> {
@@ -129,97 +122,105 @@ export class FileService {
     return results;
   }
 
-  private async processFile(currentPath: AbsolutePath): Promise<FileContent> {
-    const ext = path.extname(currentPath).toLowerCase() as Extension;
+  private processFile = cache(
+    async (currentPath: AbsolutePath): Promise<FileContent> => {
+      const ext = path.extname(currentPath).toLowerCase() as Extension;
 
-    if (!currentPath.startsWith(this.projectRoot)) {
-      return {
-        path: currentPath,
-        content: "",
-        error: "Security: Outside root",
-        dependencies: [],
-      };
-    }
-
-    if (!ALLOWED_EXTENSIONS.has(ext)) {
-      return {
-        path: currentPath,
-        content: "",
-        error: `Forbidden extension: ${ext}`,
-        dependencies: [],
-      };
-    }
-
-    try {
-      const content = await fs.readFile(currentPath, "utf-8");
-      const dependencies = new Set<string>();
-
-      if (CODE_EXTENSIONS.has(ext)) {
-        const matches = [...content.matchAll(IMPORT_REGEX)];
-        const specifiers = matches
-          .map((match) => match[1] || match[2])
-          .filter(Boolean);
-
-        for (const specifier of specifiers) {
-          const potentialPath = this.resolveImportPath(currentPath, specifier);
-          if (potentialPath) {
-            const resolved = await this.resolveWithExtensions(potentialPath);
-            if (resolved) dependencies.add(resolved);
-          }
-        }
+      if (!currentPath.startsWith(this.projectRoot)) {
+        return {
+          path: currentPath,
+          content: "",
+          error: "Security: Outside root",
+          dependencies: [],
+        };
       }
 
-      const fileData: FileContent = {
-        path: currentPath,
-        content,
-        dependencies: Array.from(dependencies),
-      };
+      if (!ALLOWED_EXTENSIONS.has(ext)) {
+        return {
+          path: currentPath,
+          content: "",
+          error: `Forbidden extension: ${ext}`,
+          dependencies: [],
+        };
+      }
 
-      return { ...fileData, sourceCode: this.formatFileSource(fileData) };
-    } catch (err) {
-      return {
-        path: currentPath,
-        content: "",
-        error: err instanceof Error ? err.message : String(err),
-        dependencies: [],
-      };
-    }
-  }
+      try {
+        const content = await fs.readFile(currentPath, "utf-8");
+        const dependencies = new Set<string>();
 
-  async loadProjectGraph(
-    entryPoints: string[],
-    includeDeps = true,
-  ): Promise<FileContent[]> {
-    const visited = new Set<AbsolutePath>();
-    const results = new Map<AbsolutePath, FileContent>();
-    let nodesToProcess: AbsolutePath[] = entryPoints.map(
-      (p) => path.resolve(p) as AbsolutePath,
-    );
+        if (CODE_EXTENSIONS.has(ext)) {
+          const matches = [...content.matchAll(IMPORT_REGEX)];
+          const specifiers = matches
+            .map((match) => match[1] || match[2])
+            .filter(Boolean);
 
-    while (nodesToProcess.length > 0) {
-      const toProcess = nodesToProcess.filter((p) => !visited.has(p));
-      nodesToProcess = [];
-      if (toProcess.length === 0) break;
-
-      toProcess.forEach((p) => visited.add(p));
-      const processedFiles =
-        await this.getFileContentsWithDependencies(toProcess);
-
-      for (const file of processedFiles) {
-        const absPath = file.path as AbsolutePath;
-        results.set(absPath, file);
-
-        if (includeDeps && file.dependencies) {
-          for (const dep of file.dependencies) {
-            if (!visited.has(dep as AbsolutePath))
-              nodesToProcess.push(dep as AbsolutePath);
+          for (const specifier of specifiers) {
+            const potentialPath = this.resolveImportPath(
+              currentPath,
+              specifier,
+            );
+            if (potentialPath) {
+              const resolved = await this.resolveWithExtensions(potentialPath);
+              if (resolved) dependencies.add(resolved);
+            }
           }
         }
+
+        const fileData: FileContent = {
+          path: currentPath,
+          content,
+          dependencies: Array.from(dependencies),
+          language: ext.slice(1),
+        };
+
+        return { ...fileData };
+      } catch (err) {
+        return {
+          path: currentPath,
+          content: "",
+          error: err instanceof Error ? err.message : String(err),
+          dependencies: [],
+        };
       }
-      if (!includeDeps) break;
-    }
-    return Array.from(results.values());
-  }
+    },
+  );
+
+  loadProjectGraph = cache(
+    async (
+      entryPoints: string[],
+      includeDeps = true,
+    ): Promise<FileContent[]> => {
+      const visited = new Set<AbsolutePath>();
+      const results = new Map<AbsolutePath, FileContent>();
+      let nodesToProcess: AbsolutePath[] = entryPoints.map(
+        (p) => path.resolve(p) as AbsolutePath,
+      );
+
+      while (nodesToProcess.length > 0) {
+        const toProcess = nodesToProcess.filter((p) => !visited.has(p));
+        nodesToProcess = [];
+        if (toProcess.length === 0) break;
+
+        toProcess.forEach((p) => visited.add(p));
+        const processedFiles =
+          await this.getFileContentsWithDependencies(toProcess);
+
+        for (const file of processedFiles) {
+          const absPath = file.path as AbsolutePath;
+          results.set(absPath, file);
+
+          if (includeDeps && file.dependencies) {
+            for (const dep of file.dependencies) {
+              if (!visited.has(dep as AbsolutePath))
+                nodesToProcess.push(dep as AbsolutePath);
+            }
+          }
+        }
+        if (!includeDeps) break;
+      }
+      return Array.from(results.values());
+    },
+  );
 }
 
 export const fileService = new FileService();
@@ -243,12 +244,14 @@ async function recursiveFileSearch(
   return (await Promise.all(promises)).flat();
 }
 
-export const getFilePaths = async (
-  folder: string = config.TARGET_PROJECT_PATH,
-  extensions: ReadonlySet<Extension> = ALLOWED_EXTENSIONS,
-  ignore: string[] = Array.from(DEFAULT_IGNORE),
-) => {
-  const stat = await fs.stat(folder).catch(() => null);
-  if (!stat?.isDirectory()) throw new Error(`Path invalido: ${folder}`);
-  return recursiveFileSearch(folder, extensions, new Set(ignore));
-};
+export const getFilePaths = cache(
+  async (
+    folder: string = config.TARGET_PROJECT_PATH,
+    extensions: ReadonlySet<Extension> = ALLOWED_EXTENSIONS,
+    ignore: string[] = Array.from(DEFAULT_IGNORE),
+  ) => {
+    const stat = await fs.stat(folder).catch(() => null);
+    if (!stat?.isDirectory()) throw new Error(`Path invalido: ${folder}`);
+    return recursiveFileSearch(folder, extensions, new Set(ignore));
+  },
+);

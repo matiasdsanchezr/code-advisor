@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, memo } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -129,7 +129,7 @@ const NodeIcon = ({ isFile, isOpen }: { isFile: boolean; isOpen: boolean }) => {
   );
 };
 
-function TreeNodeRow({
+const TreeNodeRow = memo(function TreeNodeRow({
   node,
   depth,
   selectedSet,
@@ -227,7 +227,7 @@ function TreeNodeRow({
       )}
     </li>
   );
-}
+});
 
 export function FileExplorer({
   filePaths,
@@ -248,7 +248,7 @@ export function FileExplorer({
     (node: TreeNode) => {
       if (disabled) return;
 
-      const targetFiles: string[] = node.isFile
+      const targetFiles = node.isFile
         ? node.filePath
           ? [node.filePath]
           : []
@@ -256,14 +256,17 @@ export function FileExplorer({
 
       if (!targetFiles.length) return;
 
-      const updatedSelection = new Set(selectedFiles);
+      const currentSelected = useChatStore.getState().selectedFiles;
+      const updatedSelection = new Set(currentSelected);
       const allSelected = targetFiles.every((f) => updatedSelection.has(f));
+
       targetFiles.forEach((f) =>
         allSelected ? updatedSelection.delete(f) : updatedSelection.add(f),
       );
-      setSelectedFiles([...updatedSelection]);
+
+      setSelectedFiles(Array.from(updatedSelection));
     },
-    [disabled, folderToFiles, selectedFiles, setSelectedFiles],
+    [disabled, folderToFiles, setSelectedFiles],
   );
 
   const handleClearSelection = () => {

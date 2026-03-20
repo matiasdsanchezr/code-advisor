@@ -7,33 +7,32 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
-import { useChatStore } from "@/stores/chat-store";
+import { FileContent } from "@/types/file-content";
 import { buildPrompt } from "@/utils/build-prompt";
 import { Check, ChevronDown, Copy, FileCode2 } from "lucide-react";
 import { useState } from "react";
 
-export const GeneratedUserPrompt = () => {
-  const systemPrompt = useChatStore((state) => state.systemPrompt);
-  const userQuery = useChatStore((state) => state.userQuery);
-  const fileContents = useChatStore((state) => state.fileContents);
-
+export const GeneratedPrompt = ({
+  display,
+  systemPrompt,
+  userQuery,
+  fileContents,
+}: {
+  display: boolean;
+  systemPrompt: string;
+  userQuery: string;
+  fileContents: FileContent[];
+}) => {
   const [copied, setCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
 
-  const validFiles = fileContents.filter((f) => !f.error && f.sourceCode);
-  const joinedSourceCode = validFiles
-    .map((f) => f.sourceCode)
-    .join("\n\n---\n\n");
+  const validFiles = fileContents.filter((f) => !f.error && f.content);
 
-  const generatedUserPrompt = buildPrompt(
-    systemPrompt,
-    userQuery,
-    joinedSourceCode
-  );
+  const generatedPrompt = buildPrompt(systemPrompt, userQuery, validFiles);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(generatedUserPrompt);
+      await navigator.clipboard.writeText(generatedPrompt);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -41,7 +40,7 @@ export const GeneratedUserPrompt = () => {
     }
   };
 
-  if (validFiles.length === 0) return null;
+  if (!display) return null;
 
   return (
     <Collapsible
@@ -96,13 +95,13 @@ export const GeneratedUserPrompt = () => {
 
         <Textarea
           readOnly
-          value={generatedUserPrompt}
+          value={generatedPrompt}
           className="font-mono text-xs resize-y min-h-64 max-h-125 bg-background"
           aria-label="Código fuente unificado"
         />
         <p className="text-xs text-muted-foreground text-right">
-          {generatedUserPrompt.length.toLocaleString()} caracteres · ~
-          {Math.ceil(generatedUserPrompt.length / 4).toLocaleString()} tokens
+          {generatedPrompt.length.toLocaleString()} caracteres · ~
+          {Math.ceil(generatedPrompt.length / 4).toLocaleString()} tokens
           estimados
         </p>
       </CollapsibleContent>
