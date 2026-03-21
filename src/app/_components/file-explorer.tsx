@@ -156,12 +156,16 @@ const TreeNodeRow = memo(function TreeNodeRow({
     const files = folderToFiles.get(node.id) ?? [];
     if (files.length === 0) return { checked: false, indeterminate: false };
 
-    const selectedCount = files.filter((f) => selectedSet.has(f)).length;
+    let selectedCount = 0;
+    for (const f of files) {
+      if (selectedSet.has(f)) selectedCount++;
+    }
+
     return {
       checked: selectedCount === files.length,
       indeterminate: selectedCount > 0 && selectedCount < files.length,
     };
-  }, [node, selectedSet, folderToFiles]);
+  }, [node.id, node.isFile, node.filePath, selectedSet, folderToFiles]);
 
   const toggleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -176,7 +180,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
           onClick={toggleOpen}
           className={cn(
             "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer",
-            "transition-colors group text-xs",
+            "transition-colors group text-xs"
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
@@ -185,7 +189,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
               <ChevronRight
                 className={cn(
                   "h-3 w-3 transition-transform",
-                  open && "rotate-90",
+                  open && "rotate-90"
                 )}
               />
             )}
@@ -195,7 +199,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
           <span
             className={cn(
               "truncate flex-1",
-              node.isFile ? "text-muted-foreground" : "font-medium",
+              node.isFile ? "text-muted-foreground" : "font-medium"
             )}
           >
             {node.name}
@@ -211,7 +215,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
       </div>
 
       {open && node.children.length > 0 && (
-        <ul className="mt-0.5">
+        <ul className="mt-0.5 border-l border-border/40 ml-4">
           {node.children.map((child) => (
             <TreeNodeRow
               key={child.id}
@@ -239,7 +243,7 @@ export function FileExplorer({
 
   const { roots, folderToFiles } = useMemo(
     () => buildTree(filePaths),
-    [filePaths],
+    [filePaths]
   );
 
   const selectedSet = useMemo(() => new Set(selectedFiles), [selectedFiles]);
@@ -252,7 +256,7 @@ export function FileExplorer({
         ? node.filePath
           ? [node.filePath]
           : []
-        : (folderToFiles.get(node.id) ?? []);
+        : folderToFiles.get(node.id) ?? [];
 
       if (!targetFiles.length) return;
 
@@ -261,12 +265,12 @@ export function FileExplorer({
       const allSelected = targetFiles.every((f) => updatedSelection.has(f));
 
       targetFiles.forEach((f) =>
-        allSelected ? updatedSelection.delete(f) : updatedSelection.add(f),
+        allSelected ? updatedSelection.delete(f) : updatedSelection.add(f)
       );
 
       setSelectedFiles(Array.from(updatedSelection));
     },
-    [disabled, folderToFiles, setSelectedFiles],
+    [disabled, folderToFiles, setSelectedFiles]
   );
 
   const handleClearSelection = () => {
@@ -283,7 +287,9 @@ export function FileExplorer({
         <Button
           onClick={() => setActiveTab("tree")}
           variant="outline"
-          className={`${activeTab !== "tree" ? "text-muted-foreground" : ""} flex-1`}
+          className={`${
+            activeTab !== "tree" ? "text-muted-foreground" : ""
+          } flex-1`}
         >
           <span className="icon-[fa7-solid--sitemap] h-4 w-4"></span>
           Estructura
@@ -294,7 +300,9 @@ export function FileExplorer({
         <Button
           onClick={() => setActiveTab("selected")}
           variant="outline"
-          className={`${activeTab !== "selected" ? "text-muted-foreground" : ""} flex-1`}
+          className={`${
+            activeTab !== "selected" ? "text-muted-foreground" : ""
+          } flex-1`}
         >
           <SquareCheck className="h-4 w-4" />
           Seleccionados
@@ -310,7 +318,7 @@ export function FileExplorer({
         <div
           className={cn(
             "flex-col flex-1 md:w-1/2 lg:w-2/5 border-b md:border-b-0 md:border-r",
-            activeTab === "tree" ? "flex" : "hidden md:flex",
+            activeTab === "tree" ? "flex" : "hidden md:flex"
           )}
         >
           <div className="px-3 py-2.5 md:py-2 border-b flex items-center justify-between bg-muted/30">
@@ -343,7 +351,7 @@ export function FileExplorer({
         <div
           className={cn(
             "flex-col flex-1 md:w-1/2 lg:w-3/5",
-            activeTab === "selected" ? "flex" : "hidden md:flex",
+            activeTab === "selected" ? "flex" : "hidden md:flex"
           )}
         >
           <div className="px-3 py-2.5 md:py-2 border-b flex items-center justify-between bg-muted/30">
