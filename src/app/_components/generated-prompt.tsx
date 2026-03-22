@@ -13,12 +13,10 @@ import { Check, ChevronDown, Copy, FileCode2 } from "lucide-react";
 import { useState } from "react";
 
 export const GeneratedPrompt = ({
-  display,
   systemPrompt,
   userQuery,
   fileContents,
 }: {
-  display: boolean;
   systemPrompt: string;
   userQuery: string;
   fileContents: FileContent[];
@@ -27,7 +25,6 @@ export const GeneratedPrompt = ({
   const [isOpen, setIsOpen] = useState(false);
 
   const validFiles = fileContents.filter((f) => !f.error && f.content);
-
   const generatedPrompt = buildPrompt(systemPrompt, userQuery, validFiles);
 
   const handleCopy = async () => {
@@ -39,8 +36,6 @@ export const GeneratedPrompt = ({
       console.error("Error al copiar:", err);
     }
   };
-
-  if (!display) return null;
 
   return (
     <Collapsible

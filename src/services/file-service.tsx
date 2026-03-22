@@ -129,18 +129,14 @@ export class FileService {
       if (!currentPath.startsWith(this.projectRoot)) {
         return {
           path: currentPath,
-          content: "",
           error: "Security: Outside root",
-          dependencies: [],
         };
       }
 
       if (!ALLOWED_EXTENSIONS.has(ext)) {
         return {
           path: currentPath,
-          content: "",
           error: `Forbidden extension: ${ext}`,
-          dependencies: [],
         };
       }
 

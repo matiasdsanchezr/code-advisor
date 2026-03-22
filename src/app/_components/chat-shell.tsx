@@ -317,12 +317,13 @@ const ChatShellContent = ({
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {/* Sección de prompt generado */}
-            <GeneratedPrompt
-              display={isReadyToReview}
-              systemPrompt={store.systemPrompt}
-              userQuery={store.userQuery}
-              fileContents={validFiles}
-            />
+            {isReadyToReview && (
+              <GeneratedPrompt
+                systemPrompt={store.systemPrompt}
+                userQuery={store.userQuery}
+                fileContents={validFiles}
+              />
+            )}
             <Separator />
             <div className="flex flex-wrap items-center gap-3">
               <form action={handleInferenceAction}>

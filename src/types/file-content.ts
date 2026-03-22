@@ -1,7 +1,7 @@
-export interface FileContent {
+export type FileContent = {
   path: string;
-  content: string;
+  content?: string;
   error?: string;
   dependencies?: string[];
   language?: string;
-}
+};
