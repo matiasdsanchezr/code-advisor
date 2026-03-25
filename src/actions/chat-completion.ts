@@ -1,27 +1,27 @@
 "use server";
 
 import { config } from "@/lib/config";
-import { generateContent } from "@/services/inference/inference-service";
+import { generateContent as generateContentService } from "@/services/inference/inference-service";
 import { MessagePart } from "@/services/inference/schemas/message.schema";
 import { ActionState } from "@/types/action-state";
 import { AgentResponse } from "@/types/agent-response";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-export async function generateAiAnswer(
+export async function generateContent(
   _prevState: ActionState<AgentResponse>,
   formData: FormData,
 ): Promise<ActionState<AgentResponse>> {
   try {
     const instruction = formData.get("instruction") as string;
     const input = formData.get("input") as string;
-    const imageUrlsRaw = (formData.get("imageUrls") as string) || "";
+    const imageUrls = (formData.get("imageUrls") as string) || "";
 
     const parts: MessagePart[] = [];
 
-    if (imageUrlsRaw) {
-      const urls = imageUrlsRaw
-        .split(",")
+    if (imageUrls) {
+      const urls = imageUrls
+        .split("\n")
         .map((src) => src.trim())
         .filter((src) => src.length > 0);
 
@@ -43,7 +43,7 @@ export async function generateAiAnswer(
 
     parts.push({ type: "text", content: input });
 
-    const modelResponse = await generateContent({
+    const modelResponse = await generateContentService({
       systemPrompt: instruction,
       config: { temperature: 1 },
       messages: [{ role: "user", parts }],

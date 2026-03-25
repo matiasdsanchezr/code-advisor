@@ -1,5 +1,5 @@
 "use client";
-import { generateAiAnswer } from "@/actions/chat-completion";
+import { generateContent } from "@/actions/chat-completion";
 import { getFileContents } from "@/actions/get-file-contents";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -52,17 +52,19 @@ const ChatShellContent = ({
     useShallow((s) => ({
       selectedFiles: s.selectedFiles,
       userQuery: s.userQuery,
+      imageUrls: s.imageUrls,
       systemPrompt: s.systemPrompt,
       fileContents: s.fileContents,
       agentResponse: s.agentResponse,
       includeDependencies: s.includeDependencies,
       setUserQuery: s.setUserQuery,
+      setImageUrls: s.setImageUrls,
       setFileContents: s.setFileContents,
       setAgentResponse: s.setAgentResponse,
       setIncludeDependencies: s.setIncludeDependencies,
       resetChatResult: s.resetChatResult,
       resetAll: s.resetAll,
-    }))
+    })),
   );
 
   const [showFileExplorer, setShowFileExplorer] = useState(true);
@@ -80,12 +82,12 @@ const ChatShellContent = ({
         error: error ?? "Se produjo un error al analizar los archivos",
       };
     },
-    null
+    null,
   );
 
-  const [inferenceState, handleInferenceAction, isWaitingForInference] =
+  const [chatCompletionState, handleChatCompletion, isWaitingForCompletion] =
     useActionState(async (prevState: unknown, formData: FormData) => {
-      const result = await generateAiAnswer({}, formData);
+      const result = await generateContent({}, formData);
       if (result.data) {
         store.setAgentResponse(result.data);
         return { error: null };
@@ -100,7 +102,7 @@ const ChatShellContent = ({
       store.fileContents
         .filter((file) => file.error)
         .map((file) => `${file.path}: ${file.error}`),
-    [store.fileContents]
+    [store.fileContents],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -118,20 +120,20 @@ const ChatShellContent = ({
 
   const validFiles = useMemo(
     () => store.fileContents.filter((f) => !f.error && f.content),
-    [store.fileContents]
+    [store.fileContents],
   );
   const isReadyToReview = isPromptGenerated && !!store.userQuery;
   const isDisabled =
-    isFetchingFiles || isWaitingForInference || isReadyToReview;
+    isFetchingFiles || isWaitingForCompletion || isReadyToReview;
 
   const userPrompt = useMemo(
     () => buildUserPrompt(store.userQuery, validFiles),
-    [store.userQuery, validFiles]
+    [store.userQuery, validFiles],
   );
 
   const finalPrompt = useMemo(
     () => attachSystemInstruction(store.systemPrompt, userPrompt),
-    [store.systemPrompt, userPrompt]
+    [store.systemPrompt, userPrompt],
   );
 
   return (
@@ -140,7 +142,7 @@ const ChatShellContent = ({
       <Card
         className={cn(
           "border-border/60 shadow-sm transition-colors",
-          isReadyToReview && "bg-muted/40"
+          isReadyToReview && "bg-muted/40",
         )}
       >
         <CardHeader>
@@ -174,7 +176,7 @@ const ChatShellContent = ({
               <span
                 className={cn(
                   "icon-[fa7-solid--folder-open] transition-transform",
-                  showFileExplorer && "rotate-12"
+                  showFileExplorer && "rotate-12",
                 )}
               />
               <span className="hidden sm:inline">
@@ -247,15 +249,33 @@ const ChatShellContent = ({
                 value={String(store.includeDependencies)}
               />
             </div>
+
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="user-query" className="text-sm font-medium">
-                  Tu consulta
+                <Label
+                  htmlFor="imageUrls"
+                  className="text-sm font-medium flex items-center gap-2"
+                >
+                  <span className="icon-[fa7-solid--images] text-muted-foreground" />
+                  Imágenes de referencia (URLs)
                 </Label>
-                <span className="text-[11px] text-muted-foreground">
-                  Ctrl/⌘ + Enter para enviar
-                </span>
               </div>
+              <Textarea
+                id="imageUrls"
+                name="imageUrls"
+                value={store.imageUrls}
+                onChange={(e) => store.setImageUrls(e.target.value)}
+                placeholder="https://ejemplo.com/captura1.png&#10;https://ejemplo.com/captura2.png"
+                className="min-h-20 text-xs font-mono"
+                disabled={isDisabled}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Pega una URL por línea. Estas imágenes se enviarán como contexto
+                visual al modelo.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
               <Textarea
                 id="user-query"
                 name="userQuery"
@@ -331,20 +351,20 @@ const ChatShellContent = ({
 
             <Separator />
             <div className="flex flex-wrap items-center gap-3">
-              <form action={handleInferenceAction}>
+              <form action={handleChatCompletion}>
                 <input
                   type="hidden"
                   name="instruction"
                   value={store.systemPrompt}
                 />
                 <input type="hidden" name="input" value={userPrompt} />
-                <input type="hidden" name="image-urls" value="" />
+                <input type="hidden" name="imageUrls" value={store.imageUrls} />
                 <Button
                   type="submit"
-                  disabled={isWaitingForInference}
+                  disabled={isWaitingForCompletion}
                   className="inline-flex items-center gap-2"
                 >
-                  {isWaitingForInference ? (
+                  {isWaitingForCompletion ? (
                     <>
                       <span className="icon-[fa7-solid--spinner] animate-spin" />
                       Procesando con IA...
@@ -364,7 +384,7 @@ const ChatShellContent = ({
                   store.resetChatResult();
                   setIsPromptGenerated(false);
                 }}
-                disabled={isWaitingForInference}
+                disabled={isWaitingForCompletion}
                 className="inline-flex items-center gap-2"
               >
                 <span className="icon-[fa7-solid--pencil]" />
@@ -377,7 +397,7 @@ const ChatShellContent = ({
                   store.resetAll();
                   setIsPromptGenerated(false);
                 }}
-                disabled={isWaitingForInference}
+                disabled={isWaitingForCompletion}
                 className="inline-flex items-center gap-2 text-destructive hover:text-destructive"
               >
                 <span className="icon-[fa7-solid--arrow-rotate-left]" />
@@ -389,7 +409,7 @@ const ChatShellContent = ({
       )}
 
       {/* --- SECCIÓN 3: Respuesta de la IA --- */}
-      {(store.agentResponse.response || inferenceState?.error) && (
+      {(store.agentResponse.response || chatCompletionState?.error) && (
         <Card className="overflow-hidden border-border/60 shadow-md transition-all">
           <CardHeader className="border-b bg-muted/30 py-4">
             <div className="flex items-center justify-between">
@@ -428,7 +448,7 @@ const ChatShellContent = ({
                     {store.agentResponse.response}
                   </Streamdown>
                 </div>
-              ) : isWaitingForInference ? (
+              ) : isWaitingForCompletion ? (
                 <div className="p-6 space-y-4">
                   <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
                   <div className="h-4 bg-muted animate-pulse rounded w-full" />
@@ -442,7 +462,7 @@ const ChatShellContent = ({
                   >
                     <span className="icon-[fa7-solid--circle-exclamation] text-destructive" />
                     <AlertDescription className="ml-2 font-medium">
-                      {inferenceState?.error}
+                      {chatCompletionState?.error}
                     </AlertDescription>
                   </Alert>
                 </div>

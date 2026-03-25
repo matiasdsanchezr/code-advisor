@@ -13,11 +13,13 @@ interface ChatState {
   fileContents: FileContent[];
   agentResponse: AgentResponse;
   includeDependencies: boolean;
+  imageUrls: string;
 }
 
 interface ChatActions {
   setSelectedFiles: (files: string[]) => void;
   setUserQuery: (query: string) => void;
+  setImageUrls: (urls: string) => void;
   setSystemPrompt: (prompt: string) => void;
   setFileContents: (data: FileContent[]) => void;
   setAgentResponse: (response: AgentResponse) => void;
@@ -34,6 +36,7 @@ const initialState: ChatState = {
   fileContents: [],
   agentResponse: { response: "" },
   includeDependencies: true,
+  imageUrls: "",
 };
 
 export const useChatStore = create<ChatState & ChatActions>()(
@@ -43,6 +46,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
 
       setSelectedFiles: (files) => set({ selectedFiles: files }),
       setUserQuery: (query) => set({ userQuery: query }),
+      setImageUrls: (urls) => set({ imageUrls: urls }),
       setSystemPrompt: (prompt) => set({ systemPrompt: prompt }),
       setFileContents: (data) => set({ fileContents: data }),
       setAgentResponse: (response) => set({ agentResponse: response }),
