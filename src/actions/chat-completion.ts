@@ -10,31 +10,23 @@ import path from "node:path";
 
 export async function generateAiAnswer(
   _prevState: ActionState<AgentResponse>,
-  formData: FormData
+  formData: FormData,
 ): Promise<ActionState<AgentResponse>> {
   try {
     const instruction = formData.get("instruction") as string;
-    const rawInput = formData.get("input") as string;
-    const imageSourcesRegex = /<image_sources>(.*?)<\/image_sources>/s;
-    const match = rawInput.match(imageSourcesRegex);
-    let imgSrcs = "";
-    let input = rawInput;
-
-    if (match) {
-      imgSrcs = match[1].trim();
-      input = rawInput.replace(imageSourcesRegex, "").trim();
-    }
-
-    console.log(imgSrcs);
+    const input = formData.get("input") as string;
+    const imageUrlsRaw = (formData.get("imageUrls") as string) || "";
 
     const parts: MessagePart[] = [];
-    if (imgSrcs) {
-      const urls = imgSrcs
+
+    if (imageUrlsRaw) {
+      const urls = imageUrlsRaw
         .split(",")
         .map((src) => src.trim())
         .filter((src) => src.length > 0);
+
       const base64Images = await Promise.all(
-        urls.map((src) => fetchImage(src))
+        urls.map((src) => fetchImage(src)),
       );
 
       parts.push(
@@ -44,8 +36,8 @@ export async function generateAiAnswer(
               type: "image",
               content: img.content,
               mimeType: img.mimeType,
-            } as MessagePart)
-        )
+            }) as MessagePart,
+        ),
       );
     }
 
@@ -61,7 +53,7 @@ export async function generateAiAnswer(
     await fs.writeFile(
       path.join(process.cwd(), "storage", "outputs", "response.md"),
       modelResponse.response,
-      "utf-8"
+      "utf-8",
     );
 
     return {
@@ -104,7 +96,7 @@ const fetchImage = async (src: string): Promise<ImageFile> => {
 
 export async function analyzeImages(
   _prevState: ActionState<string[]>,
-  formData: FormData
+  formData: FormData,
 ): Promise<ActionState<ImageFile[]>> {
   try {
     const imgSrcs = formData.get("image-urls") as string;
