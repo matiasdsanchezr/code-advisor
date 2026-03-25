@@ -1,31 +1,30 @@
 import { z } from "zod/v4";
 
-export const MessagePartsSchema = z.object({
-  functionCall: z
-    .object({
-      name: z.string().describe("Name of the function to call"),
-      args: z
-        .record(z.string(), z.unknown())
-        .describe("Arguments for the function"),
-    })
-    .optional(),
-  functionResponse: z
-    .object({
-      name: z.string().describe("Name of the function to call"),
-      response: z.record(z.string(), z.unknown()).describe("Function Response"),
-    })
-    .optional(),
-  text: z.string().optional().describe("Message content"),
+export const MessagePartType = ["text", "image"];
+
+export const TextPartSchema = z.object({
+  type: z.literal("text"),
+  content: z.string().describe("Message content"),
 });
+
+export const ImagePartSchema = z.object({
+  type: z.literal("image"),
+  content: z.string().describe("Base64 encoded image data"),
+  mimeType: z.string().describe("MIME type of the image"),
+});
+
+export const MessagePartSchema = z
+  .discriminatedUnion("type", [TextPartSchema, ImagePartSchema])
+  .describe("Parte de un mensaje");
 
 export const MessageSchema = z
   .object({
     role: z
       .enum(["user", "assistant", "system"])
       .describe("Role of the message sender"),
-    content: z.string(),
+    parts: z.array(MessagePartSchema).describe("Message content"),
   })
   .required();
 
 export type Message = z.infer<typeof MessageSchema>;
-export type MessageContent = z.infer<typeof MessagePartsSchema>;
+export type MessagePart = z.infer<typeof MessagePartSchema>;

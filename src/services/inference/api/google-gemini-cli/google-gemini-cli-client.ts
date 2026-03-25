@@ -12,12 +12,17 @@ import { InferenceResponse } from "../../types/inference-response";
  */
 export class GeminiCliClient implements InferenceClient {
   public generateResponse = async (
-    params: InferenceRequestOptions,
+    params: InferenceRequestOptions
   ): Promise<InferenceResponse> => {
     const model = params.model;
     const storageDir = path.join(process.cwd(), "storage");
     const filePath = path.join(storageDir, "input.md");
-    const fullPrompt = params.messages[params.messages.length - 1].content;
+
+    const message = params.messages[params.messages.length - 1];
+    if (message.parts.some((part) => part.type === "image"))
+      throw new Error("Cant process image");
+
+    const fullPrompt = message.parts.map((part) => part.content).join("\n\n");
 
     await mkdir(storageDir, { recursive: true });
     await writeFile(filePath, fullPrompt, "utf8");
@@ -60,7 +65,7 @@ export class GeminiCliClient implements InferenceClient {
 
       if (params.debug) {
         console.log(
-          `Ejecutando comando Gemini CLI para el archivo: ${filePath}`,
+          `Ejecutando comando Gemini CLI para el archivo: ${filePath}`
         );
       }
     });

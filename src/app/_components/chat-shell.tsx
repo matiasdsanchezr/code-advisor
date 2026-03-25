@@ -1,5 +1,5 @@
 "use client";
-import { generateAiAnswer } from "@/actions/chat-agent";
+import { generateAiAnswer } from "@/actions/chat-completion";
 import { getFileContents } from "@/actions/get-file-contents";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,10 @@ import { createCodePlugin } from "@streamdown/code";
 import { useActionState, useMemo, useState } from "react";
 import { Streamdown } from "streamdown";
 import { useShallow } from "zustand/shallow";
-import { buildPrompt } from "../../utils/build-prompt";
+import {
+  attachSystemInstruction,
+  buildUserPrompt,
+} from "../../utils/build-prompt";
 import { FileExplorer } from "./file-explorer";
 import { GeneratedPrompt } from "./generated-prompt";
 import { SystemPromptMenu } from "./system-prompt-menu";
@@ -59,7 +62,7 @@ const ChatShellContent = ({
       setIncludeDependencies: s.setIncludeDependencies,
       resetChatResult: s.resetChatResult,
       resetAll: s.resetAll,
-    })),
+    }))
   );
 
   const [showFileExplorer, setShowFileExplorer] = useState(true);
@@ -77,15 +80,12 @@ const ChatShellContent = ({
         error: error ?? "Se produjo un error al analizar los archivos",
       };
     },
-    null,
+    null
   );
 
   const [inferenceState, handleInferenceAction, isWaitingForInference] =
     useActionState(async (prevState: unknown, formData: FormData) => {
-      const result = await generateAiAnswer(
-        { data: store.agentResponse },
-        formData,
-      );
+      const result = await generateAiAnswer({}, formData);
       if (result.data) {
         store.setAgentResponse(result.data);
         return { error: null };
@@ -100,7 +100,7 @@ const ChatShellContent = ({
       store.fileContents
         .filter((file) => file.error)
         .map((file) => `${file.path}: ${file.error}`),
-    [store.fileContents],
+    [store.fileContents]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -118,15 +118,20 @@ const ChatShellContent = ({
 
   const validFiles = useMemo(
     () => store.fileContents.filter((f) => !f.error && f.content),
-    [store.fileContents],
+    [store.fileContents]
   );
   const isReadyToReview = isPromptGenerated && !!store.userQuery;
   const isDisabled =
     isFetchingFiles || isWaitingForInference || isReadyToReview;
 
+  const userPrompt = useMemo(
+    () => buildUserPrompt(store.userQuery, validFiles),
+    [store.userQuery, validFiles]
+  );
+
   const finalPrompt = useMemo(
-    () => buildPrompt(store.systemPrompt, store.userQuery, validFiles),
-    [store.systemPrompt, store.userQuery, validFiles],
+    () => attachSystemInstruction(store.systemPrompt, userPrompt),
+    [store.systemPrompt, userPrompt]
   );
 
   return (
@@ -135,7 +140,7 @@ const ChatShellContent = ({
       <Card
         className={cn(
           "border-border/60 shadow-sm transition-colors",
-          isReadyToReview && "bg-muted/40",
+          isReadyToReview && "bg-muted/40"
         )}
       >
         <CardHeader>
@@ -169,7 +174,7 @@ const ChatShellContent = ({
               <span
                 className={cn(
                   "icon-[fa7-solid--folder-open] transition-transform",
-                  showFileExplorer && "rotate-12",
+                  showFileExplorer && "rotate-12"
                 )}
               />
               <span className="hidden sm:inline">
@@ -319,11 +324,11 @@ const ChatShellContent = ({
             {/* Sección de prompt generado */}
             {isReadyToReview && (
               <GeneratedPrompt
-                systemPrompt={store.systemPrompt}
-                userQuery={store.userQuery}
                 fileContents={validFiles}
+                generatedPrompt={finalPrompt}
               />
             )}
+
             <Separator />
             <div className="flex flex-wrap items-center gap-3">
               <form action={handleInferenceAction}>
@@ -332,7 +337,8 @@ const ChatShellContent = ({
                   name="instruction"
                   value={store.systemPrompt}
                 />
-                <input type="hidden" name="input" value={finalPrompt} />
+                <input type="hidden" name="input" value={userPrompt} />
+                <input type="hidden" name="image-urls" value="" />
                 <Button
                   type="submit"
                   disabled={isWaitingForInference}

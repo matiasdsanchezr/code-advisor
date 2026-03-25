@@ -2,7 +2,7 @@ import "server-only";
 
 import { config } from "@/lib/config";
 import { type GenerateContentResponse, GoogleGenAI } from "@google/genai";
-import z from "zod";
+import { z } from "zod";
 import { type InferenceRequestOptions } from "../../types/inference-request-options";
 import { InferenceResponse } from "../../types/inference-response";
 import { defaultConfig } from "./google-genai-constants";
@@ -12,7 +12,7 @@ export class GoogleGenAiClient {
   protected _client = new GoogleGenAI({ apiKey: config.GENAI_API_KEY });
 
   public generateResponse = async (
-    params: InferenceRequestOptions,
+    params: InferenceRequestOptions
   ): Promise<InferenceResponse> => {
     const model = params.model;
     const client = this._client;
@@ -53,7 +53,7 @@ export class GoogleGenAiClient {
 
   private async getStreamResult(
     modelResponse: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
-    debug: boolean,
+    debug: boolean
   ) {
     let response = "";
     let reasoning = "";
@@ -64,7 +64,7 @@ export class GoogleGenAiClient {
         if (debug)
           process.stdout.write(
             chunk.candidates?.[0].content?.parts?.[0].text ||
-              "Razonamiento no encontrado",
+              "Razonamiento no encontrado"
           );
         continue;
       }
@@ -76,7 +76,7 @@ export class GoogleGenAiClient {
   }
 
   public generateResponseStream = async (
-    params: InferenceRequestOptions,
+    params: InferenceRequestOptions
   ): Promise<InferenceResponse> => {
     const model = params.model;
     const client = this._client;
@@ -101,7 +101,7 @@ export class GoogleGenAiClient {
     });
     const result = await this.getStreamResult(
       responseStream,
-      params.debug || false,
+      params.debug || false
     );
     if (!result) throw new Error("Error al producir una respuesta");
     return { ...result, response: result.response };

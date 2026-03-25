@@ -1,9 +1,17 @@
-import { type Content } from "@google/genai";
-import { type Message } from "../../schemas/message.schema";
+import { Part, type Content } from "@google/genai";
+import { MessagePart, type Message } from "../../schemas/message.schema";
 
 type TransformMessagesParams = {
   messages: Message[];
   contextInfo?: string;
+};
+
+const transformToGenAiPart = (part: MessagePart): Part => {
+  if (part.type === "image") {
+    return { inlineData: { mimeType: part.mimeType, data: part.content } };
+  }
+
+  return { text: part.content };
 };
 
 export const mapMessagesToGenAI = ({
@@ -12,7 +20,7 @@ export const mapMessagesToGenAI = ({
 }: TransformMessagesParams): Content[] => {
   const genAiContents: Content[] = messages.map((message) => ({
     role: message.role === "user" ? "user" : "model",
-    parts: [{ text: message.content }],
+    parts: message.parts.map((part) => transformToGenAiPart(part)),
   }));
 
   if (contextInfo)
@@ -38,7 +46,7 @@ export const mapMessagesToGenAI = ({
             },
           },
         ],
-      },
+      }
     );
   return genAiContents;
 };

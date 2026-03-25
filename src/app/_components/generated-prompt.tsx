@@ -8,24 +8,19 @@ import {
 } from "@/components/ui/collapsible";
 import { Textarea } from "@/components/ui/textarea";
 import { FileContent } from "@/types/file-content";
-import { buildPrompt } from "@/utils/build-prompt";
 import { Check, ChevronDown, Copy, FileCode2 } from "lucide-react";
 import { useState } from "react";
 
 export const GeneratedPrompt = ({
-  systemPrompt,
-  userQuery,
   fileContents,
+  generatedPrompt,
 }: {
-  systemPrompt: string;
-  userQuery: string;
   fileContents: FileContent[];
+  generatedPrompt: string;
 }) => {
   const [copied, setCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-
   const validFiles = fileContents.filter((f) => !f.error && f.content);
-  const generatedPrompt = buildPrompt(systemPrompt, userQuery, validFiles);
 
   const handleCopy = async () => {
     try {

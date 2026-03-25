@@ -4,7 +4,9 @@ const formatSourceCode = (files: FileContent[]): string => {
   return files
     .map(
       (file) =>
-        `Archivo: [${file.path}]\n\`\`\`${file.language || ""}\n${file.content}\n\`\`\``,
+        `Archivo: [${file.path}]\n\`\`\`${file.language || ""}\n${
+          file.content
+        }\n\`\`\``
     )
     .join("\n\n");
 };
@@ -27,8 +29,23 @@ const taskSection = (userInput: string) => `
 ## TAREA DEL USUARIO
 <task>
 ${userInput}
-</task>
+</task>i
 `;
+
+export const buildUserPrompt = (userInput: string, files?: FileContent[]) => {
+  const sections = [];
+  if (files && files.length > 0) sections.push(contextSection(files));
+  sections.push(taskSection(userInput));
+
+  return sections.join("\n\n---\n\n").trim();
+};
+
+export const attachSystemInstruction = (
+  systemPrompt: string,
+  prompt: string
+) => {
+  return `${instructionsSection(systemPrompt)}\n\n---\n\n${prompt}`;
+};
 
 /**
  * Construye un prompt optimizado para análisis de código fuente.
@@ -36,7 +53,7 @@ ${userInput}
 export const buildPrompt = (
   systemPrompt: string,
   userInput: string,
-  files?: FileContent[],
+  files?: FileContent[]
 ) => {
   const sections = [];
   if (systemPrompt) sections.push(instructionsSection(systemPrompt));

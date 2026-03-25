@@ -1,15 +1,16 @@
 import "server-only";
 
+import logger from "@/lib/logger";
 import OpenAI from "openai";
 import {
   ChatCompletionCreateParamsNonStreaming,
   ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
 } from "openai/resources/chat/completions";
+import { InferenceClient } from "../../types/inference-client";
 import { InferenceRequestOptions } from "../../types/inference-request-options";
 import { InferenceResponse } from "../../types/inference-response";
-import { InferenceClient } from "../../types/inference-client";
-import logger from "@/lib/logger";
+import { mapMessagesToOpenAi } from "./open-ai-mapper";
 
 type OpenAIChatCompletionParamsNonStreaming =
   ChatCompletionCreateParamsNonStreaming & {
@@ -44,7 +45,7 @@ export class OpenAiClient implements InferenceClient {
   }
 
   public generateResponse = async (
-    params: InferenceRequestOptions,
+    params: InferenceRequestOptions
   ): Promise<InferenceResponse> => {
     const client = this._client;
     const model = params.model;
@@ -58,7 +59,7 @@ export class OpenAiClient implements InferenceClient {
           },
         ],
       },
-      ...params.messages,
+      ...mapMessagesToOpenAi({ messages: params.messages }),
     ];
     const chatCompletion = await client.chat.completions.create({
       top_p: params.config.topP,
@@ -82,7 +83,7 @@ export class OpenAiClient implements InferenceClient {
   };
 
   public generateResponseStream = async (
-    params: InferenceRequestOptions,
+    params: InferenceRequestOptions
   ): Promise<InferenceResponse> => {
     const client = this._client;
     const model = params.model;
@@ -96,7 +97,7 @@ export class OpenAiClient implements InferenceClient {
           },
         ],
       },
-      ...params.messages,
+      ...mapMessagesToOpenAi({ messages: params.messages }),
     ];
     const chatCompletion = await client.chat.completions.create({
       response_format: params.responseJsonSchema
@@ -119,7 +120,7 @@ export class OpenAiClient implements InferenceClient {
         reasoning += delta.reasoning_content ?? delta.reasoning;
         if (params.debug)
           process.stdout.write(
-            delta.reasoning_content ?? delta.reasoning ?? "",
+            delta.reasoning_content ?? delta.reasoning ?? ""
           );
       }
       response += chunk.choices[0]?.delta?.content || "";
