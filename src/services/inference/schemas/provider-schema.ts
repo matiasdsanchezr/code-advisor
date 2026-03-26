@@ -1,11 +1,11 @@
 import z from "zod";
 
-export const InferenceProviderSchema = z.enum([
-  "gemini-cli",
+export const InferenceProviderEnum = z.enum([
+  "geminiCli",
   "genai",
   "vertex",
-  "nvidia-nim",
-  "open-router",
+  "nvidiaNim",
+  "openRouter",
 ]);
 
-export type InferenceProvider = z.infer<typeof InferenceProviderSchema>;
+export type InferenceProvider = z.infer<typeof InferenceProviderEnum>;

@@ -118,15 +118,11 @@ export class OpenAiClient implements InferenceClient {
       const delta = chunk.choices[0]?.delta as OpenAIChoiceDelta;
       if (delta?.reasoning_content || delta?.reasoning) {
         reasoning += delta.reasoning_content ?? delta.reasoning;
-        if (params.debug)
-          process.stdout.write(
-            delta.reasoning_content ?? delta.reasoning ?? ""
-          );
+        process.stdout.write(delta.reasoning_content ?? delta.reasoning ?? "");
       }
       response += chunk.choices[0]?.delta?.content || "";
-      if (params.debug) {
-        process.stdout.write(chunk.choices[0]?.delta?.content || "");
-      }
+
+      process.stdout.write(chunk.choices[0]?.delta?.content || "");
     }
 
     logger.debug(JSON.stringify(chatCompletion, null, 2));

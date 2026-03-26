@@ -1,11 +1,39 @@
-import { LoaderCircle } from "lucide-react";
+"use client";
 
-type NavbarProps = {
-  chatAgentInfo: { model: string; provider: string };
-};
+import {
+  InferenceProvider,
+  InferenceProviderEnum,
+} from "@/services/inference/schemas/provider-schema";
+import { useChatStore } from "@/stores/chat-store";
+import { useShallow } from "zustand/shallow";
+import { NavSelector } from "./nav-selector";
+import {
+  getModelsForProvider,
+  InferenceModel,
+} from "@/services/inference/types/inference-model";
+// import { NavSelector } from "./nav-selector";
 
-export const Navbar = ({ chatAgentInfo }: NavbarProps) => {
+export const Navbar = () => {
+  const { config, setConfig } = useChatStore(
+    useShallow((s) => ({
+      config: s.config,
+      setConfig: s.setConfig,
+    }))
+  );
+
   const statusLabel = "Disponible";
+  const availableModels = getModelsForProvider(config.provider);
+  const modelOptions = availableModels.map((m) => ({ label: m, value: m }));
+  const providerOptions = InferenceProviderEnum.options.map((p) => ({
+    label: p,
+    value: p,
+  }));
+
+  const handleProviderChange = (newProvider: string) => {
+    const p = newProvider as InferenceProvider;
+    const firstModel = getModelsForProvider(p)[0];
+    setConfig({ provider: p, model: firstModel } as InferenceModel);
+  };
 
   return (
     <header className="border-b border-zinc-200 bg-white/80 backdrop-blur supports-backdrop-filter:bg-white/70 dark:border-zinc-800 dark:bg-zinc-950/80">
@@ -20,44 +48,37 @@ export const Navbar = ({ chatAgentInfo }: NavbarProps) => {
               Code Advisor
             </h2>
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Estado del agente y configuración actual
+              Análisis de código inteligente
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {/* Status Indicator */}
           <div
             role="status"
-            aria-live="polite"
             className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
           >
-            {!statusLabel ? (
-              <LoaderCircle
-                className="size-4 animate-spin text-amber-500"
-                aria-hidden="true"
-              />
-            ) : (
-              <span
-                className="size-2 rounded-full bg-emerald-500"
-                aria-hidden="true"
-              />
-            )}
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>{statusLabel}</span>
           </div>
 
-          <div className="inline-flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-            <span className="text-zinc-500 dark:text-zinc-400">Proveedor:</span>
-            <span className="font-medium text-zinc-900 dark:text-zinc-100">
-              {chatAgentInfo.provider}
-            </span>
-          </div>
+          {/* Selector de Proveedor */}
+          <NavSelector
+            label="Proveedor"
+            value={config.provider}
+            options={providerOptions}
+            onChange={handleProviderChange}
+          />
 
-          <div className="inline-flex max-w-full items-center gap-1 rounded-full border border-zinc-200 bg-zinc-100 px-3 py-1.5 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-            <span className="text-zinc-500 dark:text-zinc-400">Modelo:</span>
-            <span className="max-w-55 truncate font-medium text-zinc-900 dark:text-zinc-100 sm:max-w-none">
-              {chatAgentInfo.model}
-            </span>
-          </div>
+          <NavSelector
+            label="Modelo"
+            value={config.model}
+            options={modelOptions}
+            onChange={(val) =>
+              setConfig({ ...config, model: val } as InferenceModel)
+            }
+          />
         </div>
       </div>
     </header>

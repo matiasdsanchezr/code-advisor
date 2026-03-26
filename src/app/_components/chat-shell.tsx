@@ -50,6 +50,7 @@ const ChatShellContent = ({
 }) => {
   const store = useChatStore(
     useShallow((s) => ({
+      config: s.config,
       selectedFiles: s.selectedFiles,
       userQuery: s.userQuery,
       imageUrls: s.imageUrls,
@@ -64,7 +65,7 @@ const ChatShellContent = ({
       setIncludeDependencies: s.setIncludeDependencies,
       resetChatResult: s.resetChatResult,
       resetAll: s.resetAll,
-    })),
+    }))
   );
 
   const [showFileExplorer, setShowFileExplorer] = useState(true);
@@ -82,7 +83,7 @@ const ChatShellContent = ({
         error: error ?? "Se produjo un error al analizar los archivos",
       };
     },
-    null,
+    null
   );
 
   const [chatCompletionState, handleChatCompletion, isWaitingForCompletion] =
@@ -102,7 +103,7 @@ const ChatShellContent = ({
       store.fileContents
         .filter((file) => file.error)
         .map((file) => `${file.path}: ${file.error}`),
-    [store.fileContents],
+    [store.fileContents]
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -120,7 +121,7 @@ const ChatShellContent = ({
 
   const validFiles = useMemo(
     () => store.fileContents.filter((f) => !f.error && f.content),
-    [store.fileContents],
+    [store.fileContents]
   );
   const isReadyToReview = isPromptGenerated && !!store.userQuery;
   const isDisabled =
@@ -128,12 +129,12 @@ const ChatShellContent = ({
 
   const userPrompt = useMemo(
     () => buildUserPrompt(store.userQuery, validFiles),
-    [store.userQuery, validFiles],
+    [store.userQuery, validFiles]
   );
 
   const finalPrompt = useMemo(
     () => attachSystemInstruction(store.systemPrompt, userPrompt),
-    [store.systemPrompt, userPrompt],
+    [store.systemPrompt, userPrompt]
   );
 
   return (
@@ -142,7 +143,7 @@ const ChatShellContent = ({
       <Card
         className={cn(
           "border-border/60 shadow-sm transition-colors",
-          isReadyToReview && "bg-muted/40",
+          isReadyToReview && "bg-muted/40"
         )}
       >
         <CardHeader>
@@ -176,7 +177,7 @@ const ChatShellContent = ({
               <span
                 className={cn(
                   "icon-[fa7-solid--folder-open] transition-transform",
-                  showFileExplorer && "rotate-12",
+                  showFileExplorer && "rotate-12"
                 )}
               />
               <span className="hidden sm:inline">
@@ -265,7 +266,7 @@ const ChatShellContent = ({
                 name="imageUrls"
                 value={store.imageUrls}
                 onChange={(e) => store.setImageUrls(e.target.value)}
-                placeholder="https://ejemplo.com/captura1.png&#10;https://ejemplo.com/captura2.png"
+                placeholder={`https://ejemplo.com/captura1.png\nhttps://ejemplo.com/captura2.png`}
                 className="min-h-20 text-xs font-mono"
                 disabled={isDisabled}
               />
@@ -357,8 +358,14 @@ const ChatShellContent = ({
                   name="instruction"
                   value={store.systemPrompt}
                 />
-                <input type="hidden" name="input" value={userPrompt} />
                 <input type="hidden" name="imageUrls" value={store.imageUrls} />
+                <input type="hidden" name="input" value={userPrompt} />
+                <input
+                  type="hidden"
+                  name="provider"
+                  value={store.config.provider}
+                />
+                <input type="hidden" name="model" value={store.config.model} />
                 <Button
                   type="submit"
                   disabled={isWaitingForCompletion}

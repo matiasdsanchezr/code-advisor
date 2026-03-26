@@ -1,5 +1,4 @@
 import { cn } from "@/lib/utils";
-import { getAiProviderState } from "@/services/inference/inference-service";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import { Navbar } from "./_components/navbar";
@@ -34,14 +33,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const chatAgentInfo = await getAiProviderState();
-
   return (
     <html lang="en" className={cn("font-sans", inter.variable)}>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased dark`}
       >
-        <Navbar chatAgentInfo={chatAgentInfo} />
+        <Navbar />
         {children}
       </body>
     </html>

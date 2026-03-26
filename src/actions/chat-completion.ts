@@ -1,8 +1,8 @@
 "use server";
 
-import { config } from "@/lib/config";
 import { generateContent as generateContentService } from "@/services/inference/inference-service";
 import { MessagePart } from "@/services/inference/schemas/message.schema";
+import { InferenceProvider } from "@/services/inference/schemas/provider-schema";
 import { ActionState } from "@/types/action-state";
 import { AgentResponse } from "@/types/agent-response";
 import fs from "node:fs/promises";
@@ -10,12 +10,18 @@ import path from "node:path";
 
 export async function generateContent(
   _prevState: ActionState<AgentResponse>,
-  formData: FormData,
+  formData: FormData
 ): Promise<ActionState<AgentResponse>> {
   try {
     const instruction = formData.get("instruction") as string;
     const input = formData.get("input") as string;
     const imageUrls = (formData.get("imageUrls") as string) || "";
+    const provider = formData.get("provider") as InferenceProvider;
+    const model = formData.get("model") as string;
+
+    if (!provider) return { error: "Proveedor no especificado" };
+
+    if (!model) return { error: "Modelo no especificado" };
 
     const parts: MessagePart[] = [];
 
@@ -26,7 +32,7 @@ export async function generateContent(
         .filter((src) => src.length > 0);
 
       const base64Images = await Promise.all(
-        urls.map((src) => fetchImage(src)),
+        urls.map((src) => fetchImage(src))
       );
 
       parts.push(
@@ -36,24 +42,25 @@ export async function generateContent(
               type: "image",
               content: img.content,
               mimeType: img.mimeType,
-            }) as MessagePart,
-        ),
+            } as MessagePart)
+        )
       );
     }
 
     parts.push({ type: "text", content: input });
 
     const modelResponse = await generateContentService({
+      provider,
       systemPrompt: instruction,
       config: { temperature: 1 },
       messages: [{ role: "user", parts }],
-      model: config.MODEL,
+      model,
     });
 
     await fs.writeFile(
       path.join(process.cwd(), "storage", "outputs", "response.md"),
       modelResponse.response,
-      "utf-8",
+      "utf-8"
     );
 
     return {
@@ -96,7 +103,7 @@ const fetchImage = async (src: string): Promise<ImageFile> => {
 
 export async function analyzeImages(
   _prevState: ActionState<string[]>,
-  formData: FormData,
+  formData: FormData
 ): Promise<ActionState<ImageFile[]>> {
   try {
     const imgSrcs = formData.get("image-urls") as string;

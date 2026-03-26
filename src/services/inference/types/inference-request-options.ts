@@ -1,8 +1,10 @@
+import { GenerateContentConfig } from "@google/genai";
 import { ZodObject } from "zod";
 import { Message } from "../schemas/message.schema";
-import { GenerateContentConfig } from "@google/genai";
+import { InferenceProvider } from "../schemas/provider-schema";
 
 export type InferenceRequestOptions = {
+  provider: InferenceProvider;
   systemPrompt: string;
   messages: Message[];
   model: string;

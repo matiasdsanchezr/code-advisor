@@ -1,3 +1,5 @@
+import { InferenceProvider } from "@/services/inference/schemas/provider-schema";
+import { InferenceModel } from "@/services/inference/types/inference-model";
 import { AgentResponse } from "@/types/agent-response";
 import { FileContent } from "@/types/file-content";
 import { create } from "zustand";
@@ -5,8 +7,11 @@ import { persist } from "zustand/middleware";
 
 const DEFAULT_SYSTEM_PROMPT =
   "Eres un asistente experto en análisis de código fuente. Analiza el código proporcionado y responde de forma clara y concisa.";
+const DEFAULT_PROVIDER: InferenceProvider = "nvidiaNim";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 interface ChatState {
+  config: InferenceModel;
   selectedFiles: string[];
   userQuery: string;
   systemPrompt: string;
@@ -17,6 +22,7 @@ interface ChatState {
 }
 
 interface ChatActions {
+  setConfig: (config: InferenceModel) => void;
   setSelectedFiles: (files: string[]) => void;
   setUserQuery: (query: string) => void;
   setImageUrls: (urls: string) => void;
@@ -30,6 +36,10 @@ interface ChatActions {
 }
 
 const initialState: ChatState = {
+  config: {
+    provider: "nvidiaNim",
+    model: "qwen/qwen3.5-122b-a10b",
+  },
   selectedFiles: [],
   userQuery: "",
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
@@ -44,6 +54,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
     (set) => ({
       ...initialState,
 
+      setConfig: (config) => set({ config }),
       setSelectedFiles: (files) => set({ selectedFiles: files }),
       setUserQuery: (query) => set({ userQuery: query }),
       setImageUrls: (urls) => set({ imageUrls: urls }),
@@ -64,12 +75,13 @@ export const useChatStore = create<ChatState & ChatActions>()(
     {
       name: "chat-state",
       partialize: (state) => ({
+        config: state.config,
         selectedFiles: state.selectedFiles,
         userQuery: state.userQuery,
         systemPrompt: state.systemPrompt,
         agentResponse: state.agentResponse,
         includeDependencies: state.includeDependencies,
       }),
-    },
-  ),
+    }
+  )
 );

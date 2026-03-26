@@ -1,6 +1,6 @@
 import z from "zod/v4";
 
-export const GeminiModelSchema = z.enum([
+export const GeminiModelEnum = z.enum([
   "gemini-2.0-flash",
   "gemini-2.5-flash-lite",
   "gemini-2.5-flash",
@@ -14,4 +14,4 @@ export const GeminiModelSchema = z.enum([
   "gemini-flash-latest",
 ]);
 
-export type GeminiModel = z.infer<typeof GeminiModelSchema>;
+export type GeminiModel = z.infer<typeof GeminiModelEnum>;
