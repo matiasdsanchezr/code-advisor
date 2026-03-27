@@ -30,4 +30,5 @@ export const defaultConfig: GenerateContentConfig = {
   temperature: 1,
   topP: 0.95,
   responseModalities: ["text"],
+  thinkingConfig: { includeThoughts: true, thinkingBudget: -1 },
 };

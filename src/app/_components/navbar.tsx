@@ -11,6 +11,7 @@ import {
   getModelsForProvider,
   InferenceModel,
 } from "@/services/inference/types/inference-model";
+import { formatProviderName } from "@/services/inference/utils/model-formatter";
 // import { NavSelector } from "./nav-selector";
 
 export const Navbar = () => {
@@ -18,14 +19,14 @@ export const Navbar = () => {
     useShallow((s) => ({
       config: s.config,
       setConfig: s.setConfig,
-    }))
+    })),
   );
 
   const statusLabel = "Disponible";
   const availableModels = getModelsForProvider(config.provider);
   const modelOptions = availableModels.map((m) => ({ label: m, value: m }));
   const providerOptions = InferenceProviderEnum.options.map((p) => ({
-    label: p,
+    label: formatProviderName(p),
     value: p,
   }));
 

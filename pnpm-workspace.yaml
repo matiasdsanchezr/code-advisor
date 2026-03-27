@@ -3,4 +3,6 @@ ignoredBuiltDependencies:
   - unrs-resolver
 onlyBuiltDependencies:
   - msw
+  - node-pty
   - protobufjs
+  - tree-sitter-bash

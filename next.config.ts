@@ -7,6 +7,12 @@ const nextConfig: NextConfig = {
     root: path.join(__dirname),
   },
   reactCompiler: true,
+  serverExternalPackages: [
+    "@google/gemini-cli-core",
+    "tree-sitter-bash",
+    "web-tree-sitter",
+    "node-pty",
+  ],
 };
 
 export default nextConfig;

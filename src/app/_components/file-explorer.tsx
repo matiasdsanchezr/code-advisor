@@ -1,98 +1,40 @@
 "use client";
 
-import { useState, useMemo, useCallback, memo } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import type { FileTreeNode } from "@/actions/get-file-tree";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useChatStore } from "@/stores/chat-store";
 import {
   ChevronRight,
+  FileCode,
   Folder,
   FolderOpen,
-  FileCode,
   SquareCheck,
   Trash2,
 } from "lucide-react";
-import { useChatStore } from "@/stores/chat-store";
+import { memo, useCallback, useMemo, useState } from "react";
 
 interface FileExplorerProps {
-  filePaths: string[];
+  treeNodes: FileTreeNode[];
+  totalFiles: number;
   disabled?: boolean;
 }
 
-interface TreeNode {
-  id: string;
-  name: string;
-  isFile: boolean;
-  children: TreeNode[];
-  filePath?: string;
-}
-
-function getCommonRootDirectory(paths: string[]): string {
-  if (!paths.length) return "";
-  const segmentedPaths = paths.map((p) => p.split("/"));
-  const minLen = Math.min(...segmentedPaths.map((s) => s.length));
-  const common: string[] = [];
-  for (let i = 0; i < minLen; i++) {
-    if (segmentedPaths.every((s) => s[i] === segmentedPaths[0][i]))
-      common.push(segmentedPaths[0][i]);
-    else break;
-  }
-  return common.join("/");
-}
-
-function buildTree(filePaths: string[]): {
-  roots: TreeNode[];
-  folderToFiles: Map<string, string[]>;
-} {
-  const base = getCommonRootDirectory(filePaths);
-  const roots: TreeNode[] = [];
-  const nodeMap = new Map<string, TreeNode>();
-
-  filePaths.forEach((absPath) => {
-    const relative = absPath.slice(base.length).replace(/^\//, "");
-    const parts = relative.split("/").filter(Boolean);
-    let parentNode: TreeNode | undefined;
-
-    parts.forEach((part, i) => {
-      const isFile = i === parts.length - 1;
-      const nodeId = `${base}/${parts.slice(0, i + 1).join("/")}`;
-
-      if (!nodeMap.has(nodeId)) {
-        const newNode: TreeNode = {
-          id: nodeId,
-          name: part,
-          isFile,
-          children: [],
-          filePath: isFile ? absPath : undefined,
-        };
-        nodeMap.set(nodeId, newNode);
-
-        if (parentNode) {
-          parentNode.children.push(newNode);
-        } else if (i === 0) {
-          roots.push(newNode);
-        }
-      }
-      parentNode = nodeMap.get(nodeId);
-    });
-  });
-
+function buildFolderToFiles(nodes: FileTreeNode[]): Map<string, string[]> {
   const folderToFiles = new Map<string, string[]>();
-  const collectFiles = (node: TreeNode): string[] => {
-    const files = node.isFile
-      ? node.filePath
-        ? [node.filePath]
-        : []
-      : node.children.flatMap(collectFiles);
 
-    if (!node.isFile) folderToFiles.set(node.id, files);
+  const collect = (node: FileTreeNode): string[] => {
+    if (node.isFile) return node.filePath ? [node.filePath] : [];
+    const files = node.children.flatMap(collect);
+    folderToFiles.set(node.id, files);
     return files;
   };
 
-  roots.forEach(collectFiles);
-  return { roots, folderToFiles };
+  nodes.forEach(collect);
+  return folderToFiles;
 }
 
 function IndeterminateCheckbox({
@@ -137,11 +79,11 @@ const TreeNodeRow = memo(function TreeNodeRow({
   onToggle,
   disabled,
 }: {
-  node: TreeNode;
+  node: FileTreeNode;
   depth: number;
   selectedSet: Set<string>;
   folderToFiles: Map<string, string[]>;
-  onToggle: (node: TreeNode) => void;
+  onToggle: (node: FileTreeNode) => void;
   disabled: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -169,27 +111,31 @@ const TreeNodeRow = memo(function TreeNodeRow({
 
   const toggleOpen = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!node.isFile) setOpen(!open);
+    if (!node.isFile) setOpen((prev) => !prev);
     else onToggle(node);
   };
 
   return (
-    <li className="select-none">
+    <li
+      role="treeitem"
+      aria-expanded={!node.isFile ? open : undefined}
+      aria-selected={checked}
+    >
       <div className="hover:bg-black/10 dark:hover:bg-muted relative">
         <div
           onClick={toggleOpen}
           className={cn(
             "flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer",
-            "transition-colors group text-xs"
+            "transition-colors group text-xs pl-[calc(var(--depth)*12px+8px)]",
           )}
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+          style={{ "--depth": depth } as React.CSSProperties}
         >
           <div className="w-4 h-4 flex items-center justify-center">
             {!node.isFile && (
               <ChevronRight
                 className={cn(
                   "h-3 w-3 transition-transform",
-                  open && "rotate-90"
+                  open && "rotate-90",
                 )}
               />
             )}
@@ -199,7 +145,7 @@ const TreeNodeRow = memo(function TreeNodeRow({
           <span
             className={cn(
               "truncate flex-1",
-              node.isFile ? "text-muted-foreground" : "font-medium"
+              node.isFile ? "text-muted-foreground" : "font-medium",
             )}
           >
             {node.name}
@@ -234,43 +180,43 @@ const TreeNodeRow = memo(function TreeNodeRow({
 });
 
 export function FileExplorer({
-  filePaths,
+  treeNodes,
+  totalFiles,
   disabled = false,
 }: FileExplorerProps) {
   const selectedFiles = useChatStore((state) => state.selectedFiles);
   const setSelectedFiles = useChatStore((state) => state.setSelectedFiles);
   const [activeTab, setActiveTab] = useState<"tree" | "selected">("tree");
 
-  const { roots, folderToFiles } = useMemo(
-    () => buildTree(filePaths),
-    [filePaths]
+  const folderToFiles = useMemo(
+    () => buildFolderToFiles(treeNodes),
+    [treeNodes],
   );
-
   const selectedSet = useMemo(() => new Set(selectedFiles), [selectedFiles]);
 
   const handleToggle = useCallback(
-    (node: TreeNode) => {
+    (node: FileTreeNode) => {
       if (disabled) return;
 
       const targetFiles = node.isFile
         ? node.filePath
           ? [node.filePath]
           : []
-        : folderToFiles.get(node.id) ?? [];
+        : (folderToFiles.get(node.id) ?? []);
 
       if (!targetFiles.length) return;
 
-      const currentSelected = useChatStore.getState().selectedFiles;
-      const updatedSelection = new Set(currentSelected);
-      const allSelected = targetFiles.every((f) => updatedSelection.has(f));
+      const current = useChatStore.getState().selectedFiles;
+      const updated = new Set(current);
+      const allSelected = targetFiles.every((f) => updated.has(f));
 
       targetFiles.forEach((f) =>
-        allSelected ? updatedSelection.delete(f) : updatedSelection.add(f)
+        allSelected ? updated.delete(f) : updated.add(f),
       );
 
-      setSelectedFiles(Array.from(updatedSelection));
+      setSelectedFiles(Array.from(updated));
     },
-    [disabled, folderToFiles, setSelectedFiles]
+    [disabled, folderToFiles, setSelectedFiles],
   );
 
   const handleClearSelection = () => {
@@ -287,22 +233,24 @@ export function FileExplorer({
         <Button
           onClick={() => setActiveTab("tree")}
           variant="outline"
-          className={`${
-            activeTab !== "tree" ? "text-muted-foreground" : ""
-          } flex-1`}
+          className={cn(
+            "flex-1",
+            activeTab !== "tree" && "text-muted-foreground",
+          )}
         >
-          <span className="icon-[fa7-solid--sitemap] h-4 w-4"></span>
+          <span className="icon-[fa7-solid--sitemap] h-4 w-4" />
           Estructura
           <Badge variant="secondary" className="ml-1">
-            {filePaths.length}
+            {totalFiles}
           </Badge>
         </Button>
         <Button
           onClick={() => setActiveTab("selected")}
           variant="outline"
-          className={`${
-            activeTab !== "selected" ? "text-muted-foreground" : ""
-          } flex-1`}
+          className={cn(
+            "flex-1",
+            activeTab !== "selected" && "text-muted-foreground",
+          )}
         >
           <SquareCheck className="h-4 w-4" />
           Seleccionados
@@ -318,21 +266,25 @@ export function FileExplorer({
         <div
           className={cn(
             "flex-col flex-1 md:w-1/2 lg:w-2/5 border-b md:border-b-0 md:border-r",
-            activeTab === "tree" ? "flex" : "hidden md:flex"
+            activeTab === "tree" ? "flex" : "hidden md:flex",
           )}
         >
           <div className="px-3 py-2.5 md:py-2 border-b flex items-center justify-between bg-muted/30">
             <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <span className="icon-[fa7-solid--sitemap] h-4 w-4"></span>
+              <span className="icon-[fa7-solid--sitemap] h-4 w-4" />
               Estructura
             </span>
             <Badge variant="secondary" className="hidden sm:inline-flex">
-              {filePaths.length} archivos
+              {totalFiles} archivos
             </Badge>
           </div>
           <ScrollArea className="flex-1 p-2 min-h-0">
-            <ul className="space-y-0.5">
-              {roots.map((node) => (
+            <ul
+              className="space-y-0.5"
+              role="tree"
+              aria-label="Explorador de archivos"
+            >
+              {treeNodes.map((node) => (
                 <TreeNodeRow
                   key={node.id}
                   node={node}
@@ -351,7 +303,7 @@ export function FileExplorer({
         <div
           className={cn(
             "flex-col flex-1 md:w-1/2 lg:w-3/5",
-            activeTab === "selected" ? "flex" : "hidden md:flex"
+            activeTab === "selected" ? "flex" : "hidden md:flex",
           )}
         >
           <div className="px-3 py-2.5 md:py-2 border-b flex items-center justify-between bg-muted/30">
@@ -380,7 +332,7 @@ export function FileExplorer({
           <ScrollArea className="flex-1 p-3 min-h-0">
             {selectedFiles.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-40 gap-3 text-muted-foreground">
-                <span className="icon-[fa7-solid--arrow-pointer] h-8 w-8 opacity-50"></span>
+                <span className="icon-[fa7-solid--arrow-pointer] h-8 w-8 opacity-50" />
                 <p className="text-sm text-center px-4">
                   Selecciona archivos o carpetas del árbol para comenzar
                 </p>
@@ -402,20 +354,26 @@ export function FileExplorer({
                         <span className="text-[13px] font-medium truncate flex-1">
                           {fileName}
                         </span>
-                        <button
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="h-6 w-6"
+                          aria-label={`Quitar ${fileName}`}
                           onClick={() => {
                             const next = new Set(selectedFiles);
                             next.delete(file);
                             setSelectedFiles([...next]);
                           }}
                           disabled={disabled}
-                          className="p-1 hover:bg-destructive/10 rounded-md transition-colors"
                         >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive/70 hover:text-destructive" />
-                        </button>
+                          <Trash2 className="h-3.5 w-3.5 text-destructive/70" />
+                        </Button>
                       </div>
                       {folderPath && (
-                        <span className="text-[10px] text-muted-foreground font-mono truncate pl-5">
+                        <span
+                          title={file}
+                          className="text-[10px] text-muted-foreground font-mono truncate pl-5"
+                        >
                           {folderPath}/
                         </span>
                       )}

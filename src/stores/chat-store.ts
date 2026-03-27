@@ -7,7 +7,7 @@ import { persist } from "zustand/middleware";
 
 const DEFAULT_SYSTEM_PROMPT =
   "Eres un asistente experto en análisis de código fuente. Analiza el código proporcionado y responde de forma clara y concisa.";
-const DEFAULT_PROVIDER: InferenceProvider = "nvidiaNim";
+const DEFAULT_PROVIDER: InferenceProvider = "vertex";
 const DEFAULT_MODEL = "gemini-2.5-flash";
 
 interface ChatState {
@@ -37,8 +37,8 @@ interface ChatActions {
 
 const initialState: ChatState = {
   config: {
-    provider: "nvidiaNim",
-    model: "qwen/qwen3.5-122b-a10b",
+    provider: DEFAULT_PROVIDER,
+    model: DEFAULT_MODEL,
   },
   selectedFiles: [],
   userQuery: "",
@@ -82,6 +82,6 @@ export const useChatStore = create<ChatState & ChatActions>()(
         agentResponse: state.agentResponse,
         includeDependencies: state.includeDependencies,
       }),
-    }
-  )
+    },
+  ),
 );

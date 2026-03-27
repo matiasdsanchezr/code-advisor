@@ -1,6 +1,7 @@
 "use client";
-import { generateContent } from "@/actions/chat-completion";
+
 import { getFileContents } from "@/actions/get-file-contents";
+import { FileTreeNode } from "@/actions/get-file-tree";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  useStreamingChat,
+  type ChatCompletionPayload,
+} from "@/hooks/use-streaming-chat";
 import { cn } from "@/lib/utils";
 import { useChatStore } from "@/stores/chat-store";
 import { createCodePlugin } from "@streamdown/code";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useCallback, useMemo, useState } from "react";
 import { Streamdown } from "streamdown";
 import { useShallow } from "zustand/shallow";
 import {
@@ -28,27 +33,24 @@ import {
 import { FileExplorer } from "./file-explorer";
 import { GeneratedPrompt } from "./generated-prompt";
 import { SystemPromptMenu } from "./system-prompt-menu";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning";
 
-export const ChatShell = ({
-  filePaths,
+export const ChatShellContent = ({
+  totalFiles,
   initialPrompts,
+  treeNodes,
 }: {
-  filePaths: string[];
+  totalFiles: number;
   initialPrompts: string[];
+  treeNodes: FileTreeNode[];
 }) => {
-  return (
-    <ChatShellContent filePaths={filePaths} initialPrompts={initialPrompts} />
-  );
-};
+  "use client";
 
-const ChatShellContent = ({
-  filePaths,
-  initialPrompts,
-}: {
-  filePaths: string[];
-  initialPrompts: string[];
-}) => {
-  const store = useChatStore(
+  const { setAgentResponse, ...store } = useChatStore(
     useShallow((s) => ({
       config: s.config,
       selectedFiles: s.selectedFiles,
@@ -65,7 +67,7 @@ const ChatShellContent = ({
       setIncludeDependencies: s.setIncludeDependencies,
       resetChatResult: s.resetChatResult,
       resetAll: s.resetAll,
-    }))
+    })),
   );
 
   const [showFileExplorer, setShowFileExplorer] = useState(true);
@@ -83,27 +85,44 @@ const ChatShellContent = ({
         error: error ?? "Se produjo un error al analizar los archivos",
       };
     },
-    null
+    null,
   );
 
-  const [chatCompletionState, handleChatCompletion, isWaitingForCompletion] =
-    useActionState(async (prevState: unknown, formData: FormData) => {
-      const result = await generateContent({}, formData);
-      if (result.data) {
-        store.setAgentResponse(result.data);
-        return { error: null };
-      }
-      return {
-        error: result.error ?? "Se produjo un error al generar la respuesta",
-      };
-    }, null);
+  const [chatCompletionError, setChatCompletionError] = useState<string | null>(
+    null,
+  );
+
+  const {
+    start: startStreaming,
+    abort: abortStreaming,
+    isStreaming,
+  } = useStreamingChat({
+    onReasoningChunk: useCallback(
+      (accumulated: string) =>
+        setAgentResponse({
+          response: store.agentResponse.response,
+          reasoning: accumulated,
+        }),
+      [setAgentResponse, store.agentResponse],
+    ),
+    onChunk: useCallback(
+      (accumulated: string) =>
+        setAgentResponse({
+          response: accumulated,
+          reasoning: store.agentResponse.reasoning,
+        }),
+      [setAgentResponse, store.agentResponse],
+    ),
+    onError: useCallback((err: string) => setChatCompletionError(err), []),
+    onDone: useCallback(() => {}, []),
+  });
 
   const fileErrors = useMemo(
     () =>
       store.fileContents
         .filter((file) => file.error)
         .map((file) => `${file.path}: ${file.error}`),
-    [store.fileContents]
+    [store.fileContents],
   );
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -121,20 +140,19 @@ const ChatShellContent = ({
 
   const validFiles = useMemo(
     () => store.fileContents.filter((f) => !f.error && f.content),
-    [store.fileContents]
+    [store.fileContents],
   );
   const isReadyToReview = isPromptGenerated && !!store.userQuery;
-  const isDisabled =
-    isFetchingFiles || isWaitingForCompletion || isReadyToReview;
+  const isDisabled = isFetchingFiles || isStreaming || isReadyToReview;
 
   const userPrompt = useMemo(
     () => buildUserPrompt(store.userQuery, validFiles),
-    [store.userQuery, validFiles]
+    [store.userQuery, validFiles],
   );
 
   const finalPrompt = useMemo(
     () => attachSystemInstruction(store.systemPrompt, userPrompt),
-    [store.systemPrompt, userPrompt]
+    [store.systemPrompt, userPrompt],
   );
 
   return (
@@ -143,7 +161,7 @@ const ChatShellContent = ({
       <Card
         className={cn(
           "border-border/60 shadow-sm transition-colors",
-          isReadyToReview && "bg-muted/40"
+          isReadyToReview && "bg-muted/40",
         )}
       >
         <CardHeader>
@@ -177,7 +195,7 @@ const ChatShellContent = ({
               <span
                 className={cn(
                   "icon-[fa7-solid--folder-open] transition-transform",
-                  showFileExplorer && "rotate-12"
+                  showFileExplorer && "rotate-12",
                 )}
               />
               <span className="hidden sm:inline">
@@ -201,7 +219,11 @@ const ChatShellContent = ({
           </div>
 
           {showFileExplorer && (
-            <FileExplorer filePaths={filePaths} disabled={isDisabled} />
+            <FileExplorer
+              treeNodes={treeNodes}
+              totalFiles={totalFiles}
+              disabled={isDisabled}
+            />
           )}
 
           {fileErrors.length > 0 && (
@@ -352,26 +374,23 @@ const ChatShellContent = ({
 
             <Separator />
             <div className="flex flex-wrap items-center gap-3">
-              <form action={handleChatCompletion}>
-                <input
-                  type="hidden"
-                  name="instruction"
-                  value={store.systemPrompt}
-                />
-                <input type="hidden" name="imageUrls" value={store.imageUrls} />
-                <input type="hidden" name="input" value={userPrompt} />
-                <input
-                  type="hidden"
-                  name="provider"
-                  value={store.config.provider}
-                />
-                <input type="hidden" name="model" value={store.config.model} />
+              <div className="flex items-center gap-2">
                 <Button
-                  type="submit"
-                  disabled={isWaitingForCompletion}
+                  type="button"
+                  disabled={isStreaming}
                   className="inline-flex items-center gap-2"
+                  onClick={() => {
+                    const payload: ChatCompletionPayload = {
+                      input: userPrompt,
+                      instruction: store.systemPrompt,
+                      imageUrls: store.imageUrls,
+                      provider: store.config.provider,
+                      model: store.config.model,
+                    };
+                    startStreaming(payload);
+                  }}
                 >
-                  {isWaitingForCompletion ? (
+                  {isStreaming ? (
                     <>
                       <span className="icon-[fa7-solid--spinner] animate-spin" />
                       Procesando con IA...
@@ -383,7 +402,21 @@ const ChatShellContent = ({
                     </>
                   )}
                 </Button>
-              </form>
+
+                {/* Botón de cancelación — aparece solo durante el streaming */}
+                {isStreaming && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={abortStreaming}
+                    className="inline-flex items-center gap-1.5 text-muted-foreground"
+                  >
+                    <span className="icon-[fa7-solid--stop]" />
+                    Detener
+                  </Button>
+                )}
+              </div>
 
               <Button
                 variant="outline"
@@ -391,7 +424,7 @@ const ChatShellContent = ({
                   store.resetChatResult();
                   setIsPromptGenerated(false);
                 }}
-                disabled={isWaitingForCompletion}
+                disabled={isStreaming}
                 className="inline-flex items-center gap-2"
               >
                 <span className="icon-[fa7-solid--pencil]" />
@@ -404,7 +437,7 @@ const ChatShellContent = ({
                   store.resetAll();
                   setIsPromptGenerated(false);
                 }}
-                disabled={isWaitingForCompletion}
+                disabled={isStreaming}
                 className="inline-flex items-center gap-2 text-destructive hover:text-destructive"
               >
                 <span className="icon-[fa7-solid--arrow-rotate-left]" />
@@ -416,7 +449,7 @@ const ChatShellContent = ({
       )}
 
       {/* --- SECCIÓN 3: Respuesta de la IA --- */}
-      {(store.agentResponse.response || chatCompletionState?.error) && (
+      {(store.agentResponse.response || chatCompletionError) && (
         <Card className="overflow-hidden border-border/60 shadow-md transition-all">
           <CardHeader className="border-b bg-muted/30 py-4">
             <div className="flex items-center justify-between">
@@ -445,6 +478,12 @@ const ChatShellContent = ({
             <div className="min-h-[200px] transition-all duration-500 ease-in-out">
               {store.agentResponse.response ? (
                 <div className="prose prose-sm max-w-none p-6 dark:prose-invert overflow-anchor-none">
+                  <Reasoning className="w-full" isStreaming={isStreaming}>
+                    <ReasoningTrigger />
+                    <ReasoningContent>
+                      {store.agentResponse.reasoning ?? "Sin razonamiento"}
+                    </ReasoningContent>
+                  </Reasoning>
                   <Streamdown
                     plugins={{
                       code: createCodePlugin({
@@ -455,7 +494,7 @@ const ChatShellContent = ({
                     {store.agentResponse.response}
                   </Streamdown>
                 </div>
-              ) : isWaitingForCompletion ? (
+              ) : isStreaming ? (
                 <div className="p-6 space-y-4">
                   <div className="h-4 bg-muted animate-pulse rounded w-3/4" />
                   <div className="h-4 bg-muted animate-pulse rounded w-full" />
@@ -469,7 +508,7 @@ const ChatShellContent = ({
                   >
                     <span className="icon-[fa7-solid--circle-exclamation] text-destructive" />
                     <AlertDescription className="ml-2 font-medium">
-                      {chatCompletionState?.error}
+                      {chatCompletionError}
                     </AlertDescription>
                   </Alert>
                 </div>

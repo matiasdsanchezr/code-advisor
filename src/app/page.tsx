@@ -1,16 +1,25 @@
-import { getFilePaths } from "@/services/file-service";
+import { buildFileTree } from "@/actions/get-file-tree";
 import { loadPrompts } from "@/actions/prompt";
-import { ChatShell } from "./_components/chat-shell";
+import { getFilePaths } from "@/services/file-service";
 import { Suspense } from "react";
+import { ChatShellContent } from "./_components/chat-shell";
 
-async function ChatDataWrapper() {
+export const ChatShell = async () => {
   const [filePaths, systemPrompts] = await Promise.all([
     getFilePaths(),
     loadPrompts(),
   ]);
 
-  return <ChatShell filePaths={filePaths} initialPrompts={systemPrompts} />;
-}
+  const treeNodes = await buildFileTree(filePaths);
+
+  return (
+    <ChatShellContent
+      totalFiles={filePaths.length}
+      treeNodes={treeNodes}
+      initialPrompts={systemPrompts}
+    />
+  );
+};
 
 export default function Home() {
   return (
@@ -36,7 +45,7 @@ export default function Home() {
             </div>
           }
         >
-          <ChatDataWrapper />
+          <ChatShell />
         </Suspense>
       </main>
     </div>
